@@ -23,7 +23,14 @@ Before installing the extension, make sure you have:
 
 ### Step 1: Set up the Project
 
-First, run the setup script to organize the repository structure:
+Clone the repository:
+
+```bash
+git clone https://github.com/YOUR-USERNAME/vscode-ai-dev-team.git
+cd vscode-ai-dev-team
+```
+
+Or run the setup script to organize the repository structure:
 
 ```bash
 chmod +x setup_extension.sh
