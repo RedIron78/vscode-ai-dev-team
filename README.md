@@ -12,20 +12,45 @@ A VS Code extension that provides an AI coding assistant powered by local Large 
 - ✨ **Code Improvements**: Receive suggestions to improve your code
 - 📝 **Code Completion**: Get context-aware code completions
 - 🔒 **Privacy-Focused**: All processing happens locally - your code never leaves your computer
+- ⚙️ **Fully Configurable**: Easy configuration via simple YAML file
+- 🔌 **Plug and Play**: One-click installation and startup
 
 ## Complete Documentation
 
 For detailed installation instructions, usage guide, and troubleshooting:
 
 - [Complete Guide (Markdown)](./COMPLETE-GUIDE.md)
+- [File Reference](./FILE_REFERENCE.md)
 
 ## Quick Start
+
+### One-Click Installation
+
+We provide simple one-click installers for all platforms:
+
+```bash
+# Linux/macOS
+./install.sh
+
+# Windows
+install.bat
+```
+
+The installer will set up everything you need, including:
+- Checking system requirements
+- Installing dependencies
+- Building llama.cpp with appropriate GPU optimizations
+- Setting up the VS Code extension
+- Configuring the system for optimal performance
+
+### Starting the Extension
 
 Once installed, start using the extension with these simple steps:
 
 1. Start the backend services:
    ```bash
-   ./start_all.sh  # or start_all.bat on Windows
+   ./start_all.sh  # Linux/macOS
+   start_all.bat   # Windows
    ```
 
 2. Open VS Code and access AI features via:
@@ -38,6 +63,26 @@ Once installed, start using the extension with these simple steps:
    - **Complete Code** (Ctrl+Shift+C): Get code completion suggestions
    - **Improve Selected Code** (Ctrl+Shift+I): Get improvement suggestions
 
+## Configuration
+
+The extension is fully configurable through the `config.yml` file in the root directory:
+
+```yaml
+# Sample configuration (partial)
+llm:
+  default_model: "models/Mistral-7B-Instruct-v0.2.Q4_K_M.gguf"
+  host: "127.0.0.1"
+  port: 8080
+  gpu_layers: 35  # Number of layers to offload to GPU
+
+backend:
+  host: "127.0.0.1"
+  port: 5000
+  use_memory: true  # Set to false to disable Weaviate integration
+```
+
+See [Complete Guide](./COMPLETE-GUIDE.md#configuration) for all configuration options.
+
 ## System Requirements
 
 - **OS**: Windows 10/11, macOS 10.15+, or Linux
@@ -49,7 +94,14 @@ Once installed, start using the extension with these simple steps:
 
 ## Models
 
-The extension works with any GGUF model. We provide direct download links for models tailored to different system capabilities:
+The extension works with any GGUF model. We provide easy model download functionality:
+
+```bash
+# Download a model interactively
+./scripts/download_model.sh
+```
+
+Or choose from our recommended models for different system capabilities:
 
 ### Entry-Level Systems (2-4GB RAM, Integrated Graphics)
 - **[TinyLlama-1.1B-Chat-v1.0 (Q4_K_M)](https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf)** (1.1GB)
@@ -72,10 +124,6 @@ The extension works with any GGUF model. We provide direct download links for mo
   - Memory usage: ~24GB RAM
   - Requires a powerful GPU with 8GB+ VRAM for good performance
 
-### Model Installation Instructions
-
-See the [Complete Guide](./COMPLETE-GUIDE.md#model-selection-guide) for detailed model installation instructions.
-
 ## Architecture
 
 The VS Code AI Dev Team extension consists of several components:
@@ -83,7 +131,7 @@ The VS Code AI Dev Team extension consists of several components:
 1. **VS Code Extension**: TypeScript extension integrating with VS Code
 2. **Python Backend**: Coordinates between VS Code and the AI
 3. **LLM Server**: Local large language model running via llama.cpp
-4. **Weaviate**: Vector database for storing project knowledge
+4. **Weaviate**: Vector database for storing project knowledge (optional)
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -100,16 +148,26 @@ The VS Code AI Dev Team extension consists of several components:
                        │   Weaviate      │
                        │   Vector DB     │
                        │   (Docker)      │
-                       │                 │
+                       │   (Optional)    │
                        └─────────────────┘
 ```
+
+## Extensibility
+
+The extension is designed to be easily extensible:
+
+1. **Custom Models**: Any GGUF model can be used
+2. **Configuration**: All components are configurable via `config.yml`
+3. **Scripts**: Modular scripts in the `scripts/` directory
+4. **Open Architecture**: Each component can be replaced or extended
 
 ## Stopping the Services
 
 When you're done, stop all services:
 
 ```bash
-./stop_all.sh  # or stop_all.bat on Windows
+./stop_all.sh    # Linux/macOS
+stop_all.bat     # Windows
 ```
 
 ## License

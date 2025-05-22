@@ -1,0 +1,42 @@
+# VS Code AI Dev Team Configuration
+
+# LLM Server Configuration
+llm:
+  # Default model to use
+  default_model: "models/Mistral-7B-Instruct-v0.2.Q4_K_M.gguf"
+  # Server host
+  host: "127.0.0.1"
+  # Server port
+  port: 8080
+  # Number of CPU threads (0 = auto)
+  threads: 0
+  # Context size
+  context_size: 4096
+  # GPU layers (0 = CPU only)
+  gpu_layers: 35
+  # Temperature (higher = more creative, lower = more deterministic)
+  temperature: 0.7
+  # Additional model parameters
+  extra_params: ""
+
+# Python Backend Configuration
+backend:
+  # Host for the Flask backend
+  host: "127.0.0.1"
+  # Port for the Flask backend
+  port: 5000
+  # Debug mode (true/false)
+  debug: false
+  # Memory integration (true/false)
+  use_memory: true
+
+# Weaviate Configuration
+weaviate:
+  # Host
+  host: "localhost"
+  # Port
+  port: 8090
+  # Schema name
+  schema_name: "VSCodeAssistant"
+  # Class name
+  class_name: "Memory" 

@@ -2,7 +2,7 @@
 
 ![VS Code AI Dev Team Banner](https://i.imgur.com/DsRhFQh.png)
 
-**Version 1.0.0**
+**Version 1.1.0**
 
 ## Table of Contents
 
@@ -11,15 +11,17 @@
 3. [System Requirements](#system-requirements)
 4. [Model Selection Guide](#model-selection-guide)
 5. [Installation Guide](#installation-guide)
-   - [Linux Installation](#linux-installation)
-   - [Windows Installation](#windows-installation)
-   - [macOS Installation](#macos-installation)
-6. [Using the Extension](#using-the-extension)
+   - [One-Click Installation](#one-click-installation)
+   - [Linux Installation (Manual)](#linux-installation-manual)
+   - [Windows Installation (Manual)](#windows-installation-manual)
+   - [macOS Installation (Manual)](#macos-installation-manual)
+6. [Configuration](#configuration)
+7. [Using the Extension](#using-the-extension)
    - [Commands](#commands)
    - [Tips for Best Results](#tips-for-best-results)
-7. [Advanced Features](#advanced-features)
-8. [Troubleshooting](#troubleshooting)
-9. [FAQ](#faq)
+8. [Advanced Features](#advanced-features)
+9. [Troubleshooting](#troubleshooting)
+10. [FAQ](#faq)
 
 ## Introduction
 
@@ -42,6 +44,8 @@ All of this happens locally on your own machine - your code never leaves your co
 - ✨ **Code Improvements**: Receive suggestions to improve your code
 - 📝 **Code Completion**: Get context-aware code completions
 - 🔒 **Privacy-Focused**: All processing happens locally - your code never leaves your computer
+- ⚙️ **Fully Configurable**: Easy configuration via simple YAML file
+- 🔌 **Plug and Play**: One-click installation and startup
 
 ## System Requirements
 
@@ -54,7 +58,21 @@ All of this happens locally on your own machine - your code never leaves your co
 
 ## Model Selection Guide
 
-The extension works with any GGUF model. We provide direct download links for models tailored to different system capabilities:
+The extension works with any GGUF model. We provide an easy model downloader and direct links for models tailored to different system capabilities:
+
+### Interactive Model Downloader
+
+The easiest way to get models is using our interactive downloader script:
+
+```bash
+# On Linux/macOS
+./scripts/download_model.sh
+
+# On Windows
+# Coming soon - for now, download models manually
+```
+
+This script will present you with a list of optimized models and download your selection directly to the models directory.
 
 ### Entry-Level Systems (2-4GB RAM, Integrated Graphics)
 - **[TinyLlama-1.1B-Chat-v1.0 (Q4_K_M)](https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf)** (1.1GB)
@@ -79,11 +97,52 @@ The extension works with any GGUF model. We provide direct download links for mo
 
 ## Installation Guide
 
-Choose your operating system below for installation instructions.
+We now offer a simplified one-click installation method as well as the detailed manual installation instructions for advanced users.
 
-### Linux Installation
+### One-Click Installation
 
-Follow these steps to install the VS Code AI Dev Team extension on Linux:
+The easiest way to install is using our one-click installer:
+
+#### Linux/macOS
+
+1. Open a terminal
+2. Clone the repository:
+   ```bash
+   git clone https://github.com/YOUR-USERNAME/vscode-ai-dev-team.git
+   cd vscode-ai-dev-team
+   ```
+3. Run the installer:
+   ```bash
+   ./install.sh
+   ```
+
+This script will automatically:
+- Check your system requirements
+- Install all dependencies
+- Set up Python virtual environment
+- Build the VS Code extension
+- Clone and build llama.cpp with GPU support (if available)
+- Create necessary directories
+- Make all scripts executable
+
+#### Windows
+
+1. Open Command Prompt or PowerShell
+2. Clone the repository:
+   ```cmd
+   git clone https://github.com/YOUR-USERNAME/vscode-ai-dev-team.git
+   cd vscode-ai-dev-team
+   ```
+3. Run the installer:
+   ```cmd
+   install.bat
+   ```
+
+This script performs the same steps as the Linux/macOS installer but adapted for Windows environments.
+
+### Linux Installation (Manual)
+
+Follow these steps to install the VS Code AI Dev Team extension on Linux manually:
 
 #### Step 1: Install Required Software
 
@@ -326,9 +385,9 @@ You should see green checkmarks (✅) for each service that starts successfully.
 5. Navigate to `~/vscode-ai-dev-team/extension/vscode-ai-dev-team-0.1.0.vsix` and select it
 6. Click "Install"
 
-### Windows Installation
+### Windows Installation (Manual)
 
-Follow these steps to install the VS Code AI Dev Team extension on Windows:
+Follow these steps to install the VS Code AI Dev Team extension on Windows manually:
 
 #### Step 1: Install Required Software
 
@@ -523,9 +582,9 @@ You should see success messages for each service that starts correctly.
 5. Navigate to your project folder, then the "extension" folder, select `vscode-ai-dev-team-0.1.0.vsix`
 6. Click "Install"
 
-### macOS Installation
+### macOS Installation (Manual)
 
-Follow these steps to install the VS Code AI Dev Team extension on macOS:
+Follow these steps to install the VS Code AI Dev Team extension on macOS manually:
 
 #### Step 1: Install Required Software
 
@@ -750,6 +809,87 @@ You should see green checkmarks (✅) for each service that starts successfully.
 5. Navigate to `~/vscode-ai-dev-team/extension/vscode-ai-dev-team-0.1.0.vsix` and select it
 6. Click "Install"
 
+## Configuration
+
+The VS Code AI Dev Team extension uses a simple YAML configuration file (`config.yml`) in the project root directory to control all aspects of its behavior.
+
+### Default Configuration
+
+If no configuration file exists, a default one will be created automatically when you start the services. Here's what the default configuration looks like:
+
+```yaml
+# VS Code AI Dev Team Configuration
+
+# LLM Server Configuration
+llm:
+  # Default model to use
+  default_model: "models/Mistral-7B-Instruct-v0.2.Q4_K_M.gguf"
+  # Server host
+  host: "127.0.0.1"
+  # Server port
+  port: 8080
+  # Number of CPU threads (0 = auto)
+  threads: 0
+  # Context size
+  context_size: 4096
+  # GPU layers (0 = CPU only)
+  gpu_layers: 35
+  # Temperature (higher = more creative, lower = more deterministic)
+  temperature: 0.7
+  # Additional model parameters
+  extra_params: ""
+
+# Python Backend Configuration
+backend:
+  # Host for the Flask backend
+  host: "127.0.0.1"
+  # Port for the Flask backend
+  port: 5000
+  # Debug mode (true/false)
+  debug: false
+  # Memory integration (true/false)
+  use_memory: true
+
+# Weaviate Configuration
+weaviate:
+  # Host
+  host: "localhost"
+  # Port
+  port: 8090
+  # Schema name
+  schema_name: "VSCodeAssistant"
+  # Class name
+  class_name: "Memory"
+```
+
+### Common Configuration Changes
+
+Here are some common configuration changes you might want to make:
+
+1. **Using a different model**:
+   ```yaml
+   llm:
+     default_model: "models/YOUR-MODEL-NAME.gguf"
+   ```
+
+2. **Disabling memory to run without Docker**:
+   ```yaml
+   backend:
+     use_memory: false
+   ```
+
+3. **Adjusting GPU usage** (higher values use more GPU memory but are faster):
+   ```yaml
+   llm:
+     gpu_layers: 50  # Increase for more GPU usage
+   ```
+
+4. **Changing inference temperature** (higher values = more creative, lower = more deterministic):
+   ```yaml
+   llm:
+     temperature: 0.5  # Lower for more deterministic responses
+   ```
+
 ## Using the Extension
 
 ### Starting the Services
@@ -759,6 +899,13 @@ Before using the extension, you need to start the backend services:
 1. Open a terminal and navigate to the project directory
 2. Run `./start_all.sh` (Linux/macOS) or `start_all.bat` (Windows)
 3. Wait for all services to start successfully
+
+The start script will:
+- Read settings from `config.yml`
+- Check if Docker is running (if memory integration is enabled)
+- Start Weaviate (if memory integration is enabled)
+- Start the LLM server with your configured model
+- Start the VS Code backend agent
 
 ### Accessing Commands
 
@@ -832,6 +979,13 @@ For the best experience with the AI Dev Team extension:
 
 The extension uses Weaviate as a vector database to remember previous conversations. This means the AI can reference things you've discussed before to provide more relevant answers.
 
+You can disable memory integration in `config.yml` if you don't want to use Docker or prefer not to keep conversation history:
+
+```yaml
+backend:
+  use_memory: false
+```
+
 To clear the memory:
 1. Stop all services using `./stop_all.sh` (Linux/macOS) or `stop_all.bat` (Windows)
 2. Run `docker-compose down -v` in the project directory
@@ -839,19 +993,33 @@ To clear the memory:
 
 ### Custom Models
 
-You can use different AI models with the extension:
+You can use different AI models with the extension in two ways:
 
-1. Download a GGUF model from [Hugging Face](https://huggingface.co/models?library=gguf)
-2. Place it in the `models` directory
-3. Update the model path in `scripts/run_llama_server.sh` (Linux/macOS) or `scripts\run_llama_server.bat` (Windows)
+1. **Interactive downloader**:
+   Run `./scripts/download_model.sh` and follow the prompts
+
+2. **Manual download**:
+   - Download a GGUF model from [Hugging Face](https://huggingface.co/models?library=gguf)
+   - Place it in the `models` directory
+   - Update the model path in `config.yml`:
+     ```yaml
+     llm:
+       default_model: "models/YOUR-MODEL-NAME.gguf"
+     ```
 
 ### GPU Acceleration
 
 If you have a compatible GPU, the extension can use it to run models faster:
 
-- **NVIDIA GPUs**: Ensure CUDA is installed and the model is built with CUDA support
+- **NVIDIA GPUs**: Automatic detection and CUDA support during installation
 - **AMD GPUs**: Currently limited support through ROCm
 - **Apple Silicon**: Uses optimized Metal API automatically on M1/M2/M3 Macs
+
+You can adjust GPU usage in `config.yml`:
+```yaml
+llm:
+  gpu_layers: 35  # Higher value uses more GPU, lower uses more CPU
+```
 
 ## Troubleshooting
 
@@ -898,6 +1066,22 @@ The next time you want to use the extension, just run:
 ```bash
 ./start_all.sh  # or start_all.bat on Windows
 ```
+
+### Configuration Issues
+
+If you encounter problems after changing `config.yml`:
+
+1. Revert to the default configuration by renaming or deleting the file (a new one will be created)
+2. Check for syntax errors in your YAML file
+3. Make sure all services are completely stopped before restarting with new settings
+
+### Models Not Found
+
+If the service complains about missing models:
+
+1. Check that your model exists in the location specified in `config.yml`
+2. Try downloading a model using `./scripts/download_model.sh`
+3. Verify that the model is a GGUF format compatible with llama.cpp
 
 ## FAQ
 
