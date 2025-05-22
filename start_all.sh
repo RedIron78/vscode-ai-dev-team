@@ -3,16 +3,16 @@
 # VS Code AI Dev Team - All-in-One Startup Script
 # This script starts all required services for the VS Code AI Dev Team extension
 
+# Ensure we're in the correct directory regardless of how the script is called
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 # Track if we had any errors
 HAD_ERROR=0
 error_handler() {
     HAD_ERROR=1
     echo -e "${RED}❌ Error occurred: $1${NC}"
 }
-
-# Get the script's directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
 
 # Check if required files exist
 if [ ! -f "scripts/run_llama_server.sh" ] || [ ! -f "scripts/start_vscode_agent.sh" ]; then
@@ -31,6 +31,50 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Function to check if a port is in use and find an available one
+check_port_available() {
+    local port=$1
+    local service_name=$2
+    local config_key=$3
+    
+    # Check if port is in use
+    if port_in_use "$port"; then
+        echo -e "${YELLOW}⚠️ Port $port for $service_name is already in use.${NC}"
+        # Find an available port
+        local new_port=$(find_available_port "$port")
+        echo -e "${YELLOW}Using alternative port: $new_port${NC}"
+        
+        # Update the config file if a config key was provided
+        if [ -n "$config_key" ]; then
+            sed -i "s/^  $config_key: $port/  $config_key: $new_port/" config.yml
+            echo -e "${YELLOW}Updated config.yml with new port${NC}"
+        fi
+        
+        # Return the new port
+        echo "$new_port"
+    else
+        # Port is available, return it
+        echo "$port"
+    fi
+}
+
+# Function to find an available port
+find_available_port() {
+    local start_port=$1
+    local port=$start_port
+    
+    while port_in_use "$port"; do
+        port=$((port + 1))
+        # Safety check to prevent infinite loop
+        if [ "$port" -gt "$((start_port + 100))" ]; then
+            echo -e "${RED}Cannot find available port within reasonable range.${NC}"
+            return 1
+        fi
+    done
+    
+    echo "$port"
+}
+
 # Display banner
 echo -e "${BLUE}======================================================${NC}"
 echo -e "${BLUE}  VS Code AI Dev Team - All-in-One Starter           ${NC}"
@@ -46,11 +90,11 @@ if [ ! -f "config.yml" ]; then
 # LLM Server Configuration
 llm:
   # Default model to use
-  default_model: "models/Mistral-7B-Instruct-v0.2.Q4_K_M.gguf"
+  default_model: "models/mistral-7b-instruct-v0.2.Q4_K_M.gguf"
   # Server host
   host: "127.0.0.1"
   # Server port
-  port: 8080
+  port: 8081
   # Number of CPU threads (0 = auto)
   threads: 0
   # Context size
@@ -134,6 +178,12 @@ port_in_use() {
     fi
 }
 
+# Check and update ports if they are in use
+LLM_PORT=$(check_port_available "${config_llm_port}" "LLM Server" "port")
+export LLM_PORT
+BACKEND_PORT=$(check_port_available "${config_backend_port}" "Backend Server" "port")
+export BACKEND_PORT
+
 # Verify Docker is running (only if memory is enabled)
 if [ "${config_backend_use_memory}" = "true" ]; then
     if ! command -v docker >/dev/null 2>&1; then
@@ -165,8 +215,19 @@ fi
 # Start Weaviate if memory is enabled and not running
 if [ "${config_backend_use_memory}" = "true" ]; then
     echo -e "${YELLOW}Checking Weaviate status...${NC}"
+    
+    # Check if weaviate port is in use by something other than weaviate
+    WEAVIATE_PORT=$(check_port_available "${config_weaviate_port}" "Weaviate" "port")
+    
     if ! docker ps | grep -q weaviate; then
         echo -e "${YELLOW}Starting Weaviate database...${NC}"
+        
+        # Check if we need to update the port in docker-compose.yml
+        if [ "$WEAVIATE_PORT" != "${config_weaviate_port}" ]; then
+            # Update docker-compose.yml with the new port
+            sed -i "s/- \"${config_weaviate_port}:8080\"/- \"$WEAVIATE_PORT:8080\"/" docker-compose.yml
+        fi
+        
         docker-compose up -d
         
         # Wait for Weaviate to initialize
@@ -219,7 +280,7 @@ else
     
     # Pass configuration to LLM server
     export LLM_MODEL="${config_llm_default_model}"
-    export LLM_PORT="${config_llm_port}"
+    export LLM_PORT="${LLM_PORT}"
     export LLM_HOST="${config_llm_host}"
     export LLM_THREADS="${config_llm_threads}"
     export LLM_CONTEXT_SIZE="${config_llm_context_size}"
@@ -234,7 +295,7 @@ else
     # Check if LLM server started successfully
     sleep 5
     
-    if port_in_use "${config_llm_port}"; then
+    if port_in_use "${LLM_PORT}"; then
         echo -e "${GREEN}✅ LLM server started successfully (PID: $LLM_PID).${NC}"
         echo -e "  Log available at: /tmp/llm_server.log"
     else
@@ -246,30 +307,41 @@ else
 fi
 
 # Check if VS Code agent is already running
-if port_in_use "${config_backend_port}"; then
-    echo -e "${GREEN}✅ VS Code agent is already running on port ${config_backend_port}.${NC}"
+if port_in_use "${BACKEND_PORT}"; then
+    echo -e "${YELLOW}⚠️ Port ${BACKEND_PORT} is already in use.${NC}"
+    # Find an available port
+    BACKEND_PORT=$(find_available_port "${BACKEND_PORT}")
+    echo -e "${GREEN}✅ Found available port: ${BACKEND_PORT}${NC}"
+    export BACKEND_PORT
+    
+    # Save port to a file that the VS Code extension can read
+    echo "${BACKEND_PORT}" > /tmp/vscode_ai_agent_port.txt
+    chmod 644 /tmp/vscode_ai_agent_port.txt
 else
-    # Start VS Code agent
-    echo -e "${YELLOW}Starting VS Code agent...${NC}"
+    # Start VS Code agent server in background
+    echo -e "${YELLOW}Starting VS Code agent server...${NC}"
+    
+    # Save port to a file that the VS Code extension can read
+    echo "${BACKEND_PORT}" > /tmp/vscode_ai_agent_port.txt
+    chmod 644 /tmp/vscode_ai_agent_port.txt
     
     # Pass configuration to VS Code agent
-    export BACKEND_PORT="${config_backend_port}"
-    export BACKEND_HOST="${config_backend_host}"
-    export BACKEND_DEBUG="${config_backend_debug}"
-    export USE_MEMORY="${config_backend_use_memory}"
-    export WEAVIATE_HOST="${config_weaviate_host}"
-    export WEAVIATE_PORT="${config_weaviate_port}"
-    export WEAVIATE_SCHEMA="${config_weaviate_schema_name}"
-    export WEAVIATE_CLASS="${config_weaviate_class_name}"
-    export LLM_API_URL="http://${config_llm_host}:${config_llm_port}"
+    export VSCODE_AGENT_PORT="${BACKEND_PORT}"
+    export VSCODE_AGENT_HOST="${config_backend_host}"
+    export VSCODE_AGENT_DEBUG="${config_backend_debug}"
+    export VSCODE_AGENT_USE_MEMORY="${config_backend_use_memory}"
+    export VSCODE_AGENT_LLM_HOST="${config_llm_host}"
+    export VSCODE_AGENT_LLM_PORT="${LLM_PORT}"
+    # Make VSCODE_AGENT_LLM_URL available for direct use
+    export VSCODE_AGENT_LLM_URL="http://${config_llm_host}:${LLM_PORT}/v1"
     
     scripts/start_vscode_agent.sh > /tmp/vscode_agent.log 2>&1 &
     AGENT_PID=$!
     
-    # Check if agent started successfully
-    sleep 5
+    # Check if VS Code agent started successfully - give it more time
+    sleep 10
     
-    if port_in_use "${config_backend_port}"; then
+    if port_in_use "${BACKEND_PORT}"; then
         echo -e "${GREEN}✅ VS Code agent started successfully (PID: $AGENT_PID).${NC}"
         echo -e "  Log available at: /tmp/vscode_agent.log"
     else
@@ -280,36 +352,40 @@ else
     fi
 fi
 
-echo ""
-echo -e "${BLUE}======================================================${NC}"
-echo -e "${BLUE}  All services are now running!                       ${NC}"
-echo -e "${BLUE}======================================================${NC}"
-echo ""
-if [ "${config_backend_use_memory}" = "true" ]; then
+# Final status
+if [ $HAD_ERROR -eq 0 ]; then
+    echo -e ""
+    echo -e "${BLUE}======================================================${NC}"
+    echo -e "${BLUE}  All services are now running!                       ${NC}"
+    echo -e "${BLUE}======================================================${NC}"
+    echo -e ""
     echo -e "${GREEN}✅ Weaviate database: Running in Docker${NC}"
-fi
-echo -e "${GREEN}✅ LLM server: http://${config_llm_host}:${config_llm_port}${NC}"
-echo -e "${GREEN}✅ VS Code agent: http://${config_backend_host}:${config_backend_port}${NC}"
-echo ""
-echo -e "${YELLOW}You can now use the VS Code extension commands:${NC}"
-echo -e "  - Ask AI (Ctrl+Shift+A)"
-echo -e "  - Explain Code (Ctrl+Shift+E)"
-echo -e "  - Complete Code (Ctrl+Shift+C)"
-echo -e "  - Improve Code (Ctrl+Shift+I)"
-echo ""
-echo -e "${YELLOW}To stop services, run:${NC} ./stop_all.sh"
-echo -e "${BLUE}======================================================${NC}"
-
-# Display status message based on errors
-if [ $HAD_ERROR -eq 1 ]; then
-    echo ""
-    echo -e "${RED}❌ There were errors during startup. Please review the messages above.${NC}"
+    echo -e "${GREEN}✅ LLM server: http://${config_llm_host}:${LLM_PORT}${NC}"
+    echo -e "${GREEN}✅ VS Code agent: http://${config_backend_host}:${BACKEND_PORT}${NC}"
+    echo -e ""
+    echo -e "You can now use the VS Code extension commands:"
+    echo -e "  - Ask AI (Ctrl+Shift+A)"
+    echo -e "  - Explain Code (Ctrl+Shift+E)"
+    echo -e "  - Code Chat (Ctrl+Shift+C)"
+    echo -e ""
+    echo -e "To stop all services, run: ${YELLOW}./stop_all.sh${NC}"
 else
-    echo ""
-    echo -e "${GREEN}✅ All services started successfully.${NC}"
+    echo -e ""
+    echo -e "${RED}======================================================${NC}"
+    echo -e "${RED}  Some services failed to start                       ${NC}"
+    echo -e "${RED}======================================================${NC}"
+    echo -e ""
+    echo -e "Please check the error messages above and logs for details."
+    echo -e "You can try to restart the service manually or check the documentation."
+    echo -e ""
+    echo -e "To stop all running services, run: ${YELLOW}./stop_all.sh${NC}"
+    # Commented out exit so script continues for debugging
+    # exit 1
 fi
 
 # Keep the terminal open
 echo -e "${YELLOW}Terminal will remain open. Use Ctrl+C to exit.${NC}"
-# Wait for all background processes
-wait 
+# Wait for all background processes, but don't exit if a background process fails
+set +e  # Disable exit on error for the wait command
+wait
+set -e  # Re-enable exit on error

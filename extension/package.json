@@ -2,7 +2,7 @@
   "name": "vscode-ai-dev-team",
   "displayName": "AI Dev Team",
   "description": "VS Code integration for AI Dev Team with LLM and Memory",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "engines": {
     "vscode": "^1.100.0"
   },
@@ -109,7 +109,7 @@
       "properties": {
         "aidevteam.agentApiUrl": {
           "type": "string",
-          "default": "http://localhost:5000/api/agent",
+          "default": "http://localhost:5002/api/agent",
           "description": "URL of the AI Dev Team agent API"
         },
         "aidevteam.autoStartServices": {

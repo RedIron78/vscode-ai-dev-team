@@ -10,9 +10,31 @@ import {
     startAgentService, 
     stopServices 
 } from './agent-services';
+import * as fs from 'fs';
+import * as os from 'os';
 
 // Configuration constants
-const AGENT_API_URL = 'http://localhost:5000/api/agent';
+// Use configuration rather than hardcoded ports
+function getAgentApiUrl(): string {
+  // First check if user has set a custom URL in settings
+  const config = vscode.workspace.getConfiguration('aidevteam');
+  const configuredUrl = config.get('agentApiUrl') as string;
+  
+  // Check if there's a port file we can read
+  try {
+    const portFilePath = path.join(os.tmpdir(), 'vscode_ai_agent_port.txt');
+    if (fs.existsSync(portFilePath)) {
+      const port = fs.readFileSync(portFilePath, 'utf8').trim();
+      if (port && /^\d+$/.test(port)) {
+        return `http://localhost:${port}/api/agent`;
+      }
+    }
+  } catch (error) {
+    console.log('Could not read port file:', error);
+  }
+  
+  return configuredUrl;
+}
 const DEFAULT_HEADERS = {
   'Content-Type': 'application/json'
 };
@@ -172,7 +194,33 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Register status bar item to show agent status
+  // Register the showAgentOptions command used by the status bar
+  const showAgentOptions = vscode.commands.registerCommand('aidevteam.showAgentOptions', () => {
+    vscode.commands.executeCommand('aidevteam.startServices');
+    // Show a quick pick to allow selecting different AI features
+    vscode.window.showQuickPick([
+      'Ask AI a question',
+      'Explain selected code',
+      'Complete code',
+      'Improve selected code'
+    ], {
+      placeHolder: 'Select an AI feature to use'
+    }).then(selected => {
+      if (selected === 'Ask AI a question') {
+        vscode.commands.executeCommand('aidevteam.askAI');
+      } else if (selected === 'Explain selected code') {
+        vscode.commands.executeCommand('aidevteam.explainCode');
+      } else if (selected === 'Complete code') {
+        vscode.commands.executeCommand('aidevteam.completeCode');
+      } else if (selected === 'Improve selected code') {
+        vscode.commands.executeCommand('aidevteam.improveCode');
+      }
+    });
+  });
+  
+  context.subscriptions.push(showAgentOptions);
+
+  // Create status bar item to provide quick access to the AI
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.text = "$(rocket) AI Agent";
   statusBarItem.tooltip = "Click to open AI Agent options";
@@ -403,90 +451,131 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
   }
 }
 
+/**
+ * Helper function to make API calls with automatic port discovery
+ * @param endpoint API endpoint path (e.g., "/query", "/code_explanation")
+ * @param data Request data to send
+ * @returns Response data or error message
+ */
+async function makeApiCallWithPortDiscovery(endpoint: string, data: any): Promise<any> {
+  // Get primary URL from settings
+  const primaryUrl = getAgentApiUrl();
+  const fullUrl = `${primaryUrl}${endpoint}`;
+  console.log(`Connecting to API endpoint: ${fullUrl}`);
+  
+  // Try with primary URL first
+  try {
+    const response = await axios.post(fullUrl, data, {
+      headers: DEFAULT_HEADERS,
+      timeout: 5000 // Add timeout to fail faster if service is not available
+    });
+    
+    return response.data;
+  } catch (error: any) {
+    console.log(`Primary URL ${primaryUrl} failed:`, error.message);
+    
+    // If primary URL fails with connection error, try alternative ports
+    if (axios.isAxiosError(error) && !error.response) {
+      // Extract the hostname from the primary URL
+      const url = new URL(primaryUrl);
+      const hostname = url.hostname;
+      const basePath = url.pathname.split('/api/agent')[0];
+      
+      // Try common alternative ports
+      const alternativePorts = [5000, 5001, 5002, 5003, 5004, 5005];
+      for (const port of alternativePorts) {
+        const alternativeBaseUrl = `http://${hostname}:${port}${basePath}/api/agent`;
+        const alternativeFullUrl = `${alternativeBaseUrl}${endpoint}`;
+        console.log(`Trying alternative port: ${alternativeFullUrl}`);
+        
+        try {
+          const response = await axios.post(alternativeFullUrl, data, {
+            headers: DEFAULT_HEADERS,
+            timeout: 3000 // Shorter timeout for alternative ports
+          });
+          
+          // If successful, update config for future requests
+          const config = vscode.workspace.getConfiguration('aidevteam');
+          config.update('agentApiUrl', alternativeBaseUrl, vscode.ConfigurationTarget.Global);
+          console.log(`Updated configuration to use successful port: ${alternativeBaseUrl}`);
+          
+          return response.data;
+        } catch (portError: any) {
+          console.log(`Alternative URL ${alternativeFullUrl} failed:`, portError.message);
+          // Continue to next port
+        }
+      }
+    }
+    
+    // If all attempts fail, throw the error to be handled by the caller
+    throw error;
+  }
+}
+
+// Update sendGeneralQuery to use the helper function and add the required type field
 async function sendGeneralQuery(query: string, useMemory: boolean = true): Promise<string> {
   try {
-    const apiUrl = vscode.workspace.getConfiguration('aidevteam').get('agentApiUrl', AGENT_API_URL);
-    console.log(`Sending request to ${apiUrl} with type="general_query" and query="${query}"`);
-    
-    const requestData = {
-      type: "general_query",
+    const response = await makeApiCallWithPortDiscovery('/query', {
+      type: "general_query",  // Add this required field
       query,
       use_memory: useMemory
-    };
-    console.log('Request data:', JSON.stringify(requestData));
-    
-    const response = await axios.post(apiUrl, requestData, { 
-      headers: DEFAULT_HEADERS 
     });
     
-    console.log('Response:', JSON.stringify(response.data));
-    return response.data.response;
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('Axios error:', error.message);
-      console.error('Request config:', JSON.stringify(error.config));
-      if (error.response) {
-        console.error('Response data:', JSON.stringify(error.response.data));
-        console.error('Response status:', error.response.status);
-      }
-    } else {
-      console.error('Error sending query:', error);
+    return response.response;
+  } catch (error: any) {
+    console.error('Error sending query to agent:', error);
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return 'AI services are not running. Please start the services first with the "AI Dev Team: Start Services" command.';
     }
-    return 'Sorry, I encountered an error processing your request.';
+    return `Error connecting to AI services. Please make sure the services are running and check the port configuration.`;
   }
 }
 
+// Update sendCodeExplanation to use the helper function
 async function sendCodeExplanation(code: string, fileType: string): Promise<string> {
   try {
-    const apiUrl = vscode.workspace.getConfiguration('aidevteam').get('agentApiUrl', AGENT_API_URL);
-    const response = await axios.post(apiUrl, {
-      type: "code_explanation",
+    const response = await makeApiCallWithPortDiscovery('/code_explanation', {
+      type: "code_explanation",  // Add this required field
       code,
       file_type: fileType
-    }, { 
-      headers: DEFAULT_HEADERS 
     });
     
-    return response.data.response || response.data.explanation;
-  } catch (error) {
-    console.error('Error explaining code:', error);
-    return 'Sorry, I encountered an error explaining this code.';
+    return response.explanation;
+  } catch (error: any) {
+    console.error('Error sending code explanation request:', error);
+    return `Error connecting to AI services. Please make sure the services are running and check the port configuration.`;
   }
 }
 
+// Update sendCodeCompletion to use the helper function
 async function sendCodeCompletion(codeContext: string, fileType: string, request: string): Promise<string> {
   try {
-    const apiUrl = vscode.workspace.getConfiguration('aidevteam').get('agentApiUrl', AGENT_API_URL);
-    const response = await axios.post(apiUrl, {
-      type: "code_completion",
-      code_context: codeContext,
+    const response = await makeApiCallWithPortDiscovery('/code_completion', {
+      type: "code_completion",  // Add this required field
+      context: codeContext,
       file_type: fileType,
       request
-    }, { 
-      headers: DEFAULT_HEADERS 
     });
     
-    return response.data.response || response.data.completion;
-  } catch (error) {
-    console.error('Error completing code:', error);
-    return '// Error generating code completion';
+    return response.completion;
+  } catch (error: any) {
+    console.error('Error sending code completion request:', error);
+    return '';
   }
 }
 
+// Update sendCodeImprovement to use the helper function
 async function sendCodeImprovement(code: string, fileType: string): Promise<string> {
   try {
-    const apiUrl = vscode.workspace.getConfiguration('aidevteam').get('agentApiUrl', AGENT_API_URL);
-    const response = await axios.post(apiUrl, {
-      type: "code_improvement",
+    const response = await makeApiCallWithPortDiscovery('/code_improvement', {
+      type: "code_improvement",  // Add this required field
       code,
       file_type: fileType
-    }, { 
-      headers: DEFAULT_HEADERS 
     });
     
-    return response.data.response || response.data.improved_code;
-  } catch (error) {
-    console.error('Error improving code:', error);
-    return code + '\n\n// Error: Could not generate improvements';
+    return response.improved_code;
+  } catch (error: any) {
+    console.error('Error sending code improvement request:', error);
+    return code; // Return original code on error
   }
 }

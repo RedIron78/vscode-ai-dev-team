@@ -3,11 +3,11 @@
 # LLM Server Configuration
 llm:
   # Default model to use
-  default_model: "models/Mistral-7B-Instruct-v0.2.Q4_K_M.gguf"
+  default_model: "models/mistral-7b-instruct-v0.2.Q4_K_M.gguf"
   # Server host
   host: "127.0.0.1"
   # Server port
-  port: 8080
+  port: 8084
   # Number of CPU threads (0 = auto)
   threads: 0
   # Context size
@@ -24,7 +24,7 @@ backend:
   # Host for the Flask backend
   host: "127.0.0.1"
   # Port for the Flask backend
-  port: 5000
+  port: 5002
   # Debug mode (true/false)
   debug: false
   # Memory integration (true/false)

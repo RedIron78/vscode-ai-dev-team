@@ -2,11 +2,17 @@ import * as vscode from 'vscode';
 import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 
 // Track process instances
 let weaviateProcess: ChildProcess | null = null;
 let llamaServerProcess: ChildProcess | null = null;
 let agentServerProcess: ChildProcess | null = null;
+
+// Helper function to determine script extension based on platform
+function getScriptExt(): string {
+    return os.platform() === 'win32' ? '.bat' : '.sh';
+}
 
 /**
  * Start the Weaviate service using Docker if it's not already running
@@ -70,21 +76,33 @@ export async function startLLMService(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         try {
             const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
-            const scriptPath = path.join(workspaceRoot, 'run_llama_server.sh');
+            const scriptExt = getScriptExt();
+            const scriptPath = path.join(workspaceRoot, 'scripts', `run_llama_server${scriptExt}`);
             
             if (!fs.existsSync(scriptPath)) {
-                reject(new Error('run_llama_server.sh not found in the workspace root'));
+                reject(new Error(`run_llama_server${scriptExt} not found in the scripts directory`));
                 return;
             }
             
-            // Make the script executable
-            fs.chmodSync(scriptPath, '755');
+            // Make the script executable on Linux/macOS
+            if (os.platform() !== 'win32') {
+                fs.chmodSync(scriptPath, '755');
+            }
             
-            llamaServerProcess = spawn(scriptPath, [], { 
-                cwd: workspaceRoot,
-                detached: true,
-                stdio: ['ignore', 'pipe', 'pipe']
-            });
+            // On Windows use cmd /c to run the batch file
+            if (os.platform() === 'win32') {
+                llamaServerProcess = spawn('cmd', ['/c', scriptPath], { 
+                    cwd: workspaceRoot,
+                    detached: true,
+                    stdio: ['ignore', 'pipe', 'pipe']
+                });
+            } else {
+                llamaServerProcess = spawn(scriptPath, [], { 
+                    cwd: workspaceRoot,
+                    detached: true,
+                    stdio: ['ignore', 'pipe', 'pipe']
+                });
+            }
             
             llamaServerProcess.stdout?.on('data', (data) => {
                 console.log(`LLM server stdout: ${data}`);
@@ -120,19 +138,33 @@ export async function startAgentService(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         try {
             const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
-            const pythonPath = path.join(workspaceRoot, 'venv', 'bin', 'python');
-            const scriptPath = path.join(workspaceRoot, 'vscode_integration.py');
+            const scriptExt = getScriptExt();
+            const scriptPath = path.join(workspaceRoot, 'scripts', `start_vscode_agent${scriptExt}`);
             
             if (!fs.existsSync(scriptPath)) {
-                reject(new Error('vscode_integration.py not found in the workspace root'));
+                reject(new Error(`start_vscode_agent${scriptExt} not found in the scripts directory`));
                 return;
             }
             
-            agentServerProcess = spawn(pythonPath, [scriptPath], { 
-                cwd: workspaceRoot,
-                detached: true,
-                stdio: ['ignore', 'pipe', 'pipe']
-            });
+            // Make the script executable on Linux/macOS
+            if (os.platform() !== 'win32') {
+                fs.chmodSync(scriptPath, '755');
+            }
+            
+            // On Windows use cmd /c to run the batch file
+            if (os.platform() === 'win32') {
+                agentServerProcess = spawn('cmd', ['/c', scriptPath], { 
+                    cwd: workspaceRoot,
+                    detached: true,
+                    stdio: ['ignore', 'pipe', 'pipe']
+                });
+            } else {
+                agentServerProcess = spawn(scriptPath, [], { 
+                    cwd: workspaceRoot,
+                    detached: true,
+                    stdio: ['ignore', 'pipe', 'pipe']
+                });
+            }
             
             agentServerProcess.stdout?.on('data', (data) => {
                 console.log(`Agent server stdout: ${data}`);
@@ -151,10 +183,10 @@ export async function startAgentService(): Promise<void> {
                 reject(error);
             });
             
-            // Set a timeout for server startup
+            // Set a timeout for server startup - increased to account for slower startup
             setTimeout(() => {
                 resolve(); // Resolve anyway after timeout
-            }, 10000);
+            }, 15000);
         } catch (error) {
             reject(error);
         }
@@ -166,10 +198,53 @@ export async function startAgentService(): Promise<void> {
  */
 export async function stopServices(): Promise<void> {
     return new Promise<void>((resolve) => {
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
+        const scriptExt = getScriptExt();
+        const stopScript = path.join(workspaceRoot, `stop_all${scriptExt}`);
+        
+        // If stop_all script exists, use it
+        if (fs.existsSync(stopScript)) {
+            try {
+                console.log('Stopping services using stop_all script');
+                
+                // Make the script executable on Linux/macOS
+                if (os.platform() !== 'win32') {
+                    fs.chmodSync(stopScript, '755');
+                }
+                
+                // Execute the appropriate stop script based on platform
+                const stopProcess = os.platform() === 'win32' ? 
+                    spawn('cmd', ['/c', stopScript], { cwd: workspaceRoot }) :
+                    spawn(stopScript, [], { cwd: workspaceRoot });
+                
+                stopProcess.on('close', () => {
+                    console.log('All services stopped via script');
+                    llamaServerProcess = null;
+                    agentServerProcess = null;
+                    weaviateProcess = null;
+                    resolve();
+                });
+                
+                return;
+            } catch (error) {
+                console.error('Error stopping services with script:', error);
+                // Continue with manual shutdown if script fails
+            }
+        }
+        
+        // Manual shutdown as fallback
+        console.log('Manual shutdown of services');
+        
         // Stop agent server
         if (agentServerProcess) {
             try {
-                process.kill(-agentServerProcess.pid!, 'SIGTERM');
+                if (os.platform() === 'win32') {
+                    // On Windows, terminate process tree
+                    spawn('taskkill', ['/pid', agentServerProcess.pid!.toString(), '/f', '/t']);
+                } else {
+                    // On Unix, kill process group
+                    process.kill(-agentServerProcess.pid!, 'SIGTERM');
+                }
             } catch (error) {
                 console.error('Error stopping agent server:', error);
             }
@@ -179,7 +254,13 @@ export async function stopServices(): Promise<void> {
         // Stop LLM server
         if (llamaServerProcess) {
             try {
-                process.kill(-llamaServerProcess.pid!, 'SIGTERM');
+                if (os.platform() === 'win32') {
+                    // On Windows, terminate process tree
+                    spawn('taskkill', ['/pid', llamaServerProcess.pid!.toString(), '/f', '/t']);
+                } else {
+                    // On Unix, kill process group
+                    process.kill(-llamaServerProcess.pid!, 'SIGTERM');
+                }
             } catch (error) {
                 console.error('Error stopping LLM server:', error);
             }
@@ -187,7 +268,6 @@ export async function stopServices(): Promise<void> {
         }
         
         // Stop Weaviate
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
         const dockerComposeProcess = spawn('docker-compose', ['down'], { cwd: workspaceRoot });
         
         dockerComposeProcess.on('close', () => {

@@ -2,7 +2,7 @@
 
 ![VS Code AI Dev Team Banner](https://i.imgur.com/DsRhFQh.png)
 
-**Version 1.1.0**
+**Version 1.2.0**
 
 ## Table of Contents
 
@@ -45,7 +45,8 @@ All of this happens locally on your own machine - your code never leaves your co
 - 📝 **Code Completion**: Get context-aware code completions
 - 🔒 **Privacy-Focused**: All processing happens locally - your code never leaves your computer
 - ⚙️ **Fully Configurable**: Easy configuration via simple YAML file
-- 🔌 **Plug and Play**: One-click installation and startup
+- 🔌 **Cross-Platform**: Full support for Windows, Linux, and macOS
+- 🛠️ **Smart Port Management**: Automatic port conflict detection and resolution
 
 ## System Requirements
 
@@ -69,7 +70,7 @@ The easiest way to get models is using our interactive downloader script:
 ./scripts/download_model.sh
 
 # On Windows
-# Coming soon - for now, download models manually
+scripts\download_model.bat
 ```
 
 This script will present you with a list of optimized models and download your selection directly to the models directory.
@@ -1021,67 +1022,68 @@ llm:
   gpu_layers: 35  # Higher value uses more GPU, lower uses more CPU
 ```
 
-## Troubleshooting
+## Automatic Port Conflict Detection and Resolution
 
-### Common Issues
+The extension now includes automatic port conflict detection and resolution in all scripts. If any of the default ports (8081 for LLM, 5000 for backend, 8090 for Weaviate) are already in use, the system will:
 
-#### Extension Shows "Failed to start AI services"
+1. Detect the conflict automatically
+2. Find an available port
+3. Update the configuration
+4. Start the service on the new port
+5. Ensure all components communicate correctly
 
-**Possible causes and solutions**:
-1. Services aren't running - Run `./start_all.sh` or `start_all.bat`
-2. Llama.cpp server executable not found - Check if it was built correctly
-3. Port conflict - Another application might be using port 5000 or 8080
+This means you no longer need to manually change ports or stop other services - the system handles it all automatically.
 
-#### AI Responses Are Slow
-
-**Possible solutions**:
-1. Use a smaller model (e.g., TinyLlama instead of Mistral)
-2. Enable GPU acceleration if available
-3. Increase the server's allocated memory
-
-#### AI Gives Incorrect or Irrelevant Responses
-
-**Possible solutions**:
-1. Try using a larger, more capable model
-2. Be more specific in your questions
-3. Clear the memory if the AI seems confused by previous context
-
-### Checking Logs
-
-If you encounter issues, check the log files:
-
-- **Linux/macOS**: `/tmp/llm_server.log` and `/tmp/vscode_agent.log`
-- **Windows**: `%TEMP%\llm_server.log` and `%TEMP%\vscode_agent.log`
-
-### Stopping and Restarting Services
-
-When you're done using the extension, you can stop all the services:
-
-```bash
-./stop_all.sh  # or stop_all.bat on Windows
+Example from the logs when a port conflict is detected:
+```
+⚠️ Port 8081 is already in use.
+✅ Found available port: 8082
+✅ Updated config.yml with new port
+✅ Starting llama.cpp server on port 8082
 ```
 
-The next time you want to use the extension, just run:
+## Cross-Platform Compatibility
+
+All scripts and commands now have full cross-platform compatibility, ensuring the extension works identically on:
+
+- Windows (using .bat scripts)
+- Linux (using .sh scripts)
+- macOS (using .sh scripts)
+
+The following scripts are available in both bash (.sh) and batch (.bat) versions:
+
+- `install.{sh,bat}` - Install all dependencies
+- `start_all.{sh,bat}` - Start all services
+- `stop_all.{sh,bat}` - Stop all services
+- `run_tests.{sh,bat}` - Run automated tests
+- `scripts/download_model.{sh,bat}` - Download LLM models
+- `scripts/start_vscode_agent.{sh,bat}` - Start the VS Code agent
+- `scripts/run_llama_server.{sh,bat}` - Start the LLM server
+- `scripts/run_tests.{sh,bat}` - Test the scripts
+
+All scripts maintain consistent functionality and user experience across platforms, allowing for seamless workflow regardless of operating system.
+
+## Testing
+
+To run the automated test suite:
 
 ```bash
-./start_all.sh  # or start_all.bat on Windows
+# On Linux/macOS
+./run_tests.sh
+
+# On Windows
+run_tests.bat
 ```
 
-### Configuration Issues
+This will run a comprehensive test suite that checks:
+- Configuration validation
+- Service startup and status
+- Port availability and conflict resolution
+- LLM query functionality
+- Code completion functionality
+- VS Code extension integration
 
-If you encounter problems after changing `config.yml`:
-
-1. Revert to the default configuration by renaming or deleting the file (a new one will be created)
-2. Check for syntax errors in your YAML file
-3. Make sure all services are completely stopped before restarting with new settings
-
-### Models Not Found
-
-If the service complains about missing models:
-
-1. Check that your model exists in the location specified in `config.yml`
-2. Try downloading a model using `./scripts/download_model.sh`
-3. Verify that the model is a GGUF format compatible with llama.cpp
+Test results are saved to the `test_results` directory with detailed logs and an HTML report.
 
 ## FAQ
 
@@ -1106,6 +1108,32 @@ A: Advanced users can modify the extension code to add custom commands, but this
 
 ### Q: How is this different from GitHub Copilot or other cloud AI tools?
 A: The main difference is that this extension runs entirely on your local machine. Your code never leaves your computer, providing complete privacy and control over your data. Additionally, you can choose which models to use based on your preferences.
+
+### Q: Why is my model file not being detected?
+
+If your model file is not being detected, check the following:
+
+1. Model name case sensitivity: Ensure that the model filename matches exactly with what's in your config.yml. The config is case-sensitive (e.g., "mistral-7b-instruct-v0.2.Q4_K_M.gguf" vs. "Mistral-7B-Instruct-v0.2.Q4_K_M.gguf").
+
+2. Model path: Make sure the model is in the correct directory. The default is the "models/" directory in the project root.
+
+3. File permissions: Ensure the model file has read permissions.
+
+### The services don't start or I get port conflicts. What should I do?
+
+The extension now includes automatic port conflict detection and resolution. If a port is already in use, the system will find an available port automatically. However, if you're still experiencing issues:
+
+1. Check if another program is using the default ports (8081 for LLM, 5000 for backend, 8090 for Weaviate)
+2. Use the `stop_all.sh` or `stop_all.bat` script to ensure all previous instances are stopped
+3. Manually specify different ports in your config.yml file
+4. Restart your computer to clear any hung processes
+
+### How do I troubleshoot other issues?
+
+1. Check the log files in the `logs/` directory
+2. Run the automated tests with `run_tests.sh` or `run_tests.bat` to identify specific issues
+3. Make sure Docker is running if you're using Weaviate memory integration
+4. Check your GPU drivers are up-to-date if using GPU acceleration
 
 ## Command Reference
 

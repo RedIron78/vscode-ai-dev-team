@@ -45,21 +45,27 @@ mkdir -p "$LOG_DIR"
 # Current date/time for log files
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 
+# Set the agent port from environment variable if available
+PORT_OPTION=""
+if [ -n "$VSCODE_AGENT_PORT" ]; then
+    PORT_OPTION="--port $VSCODE_AGENT_PORT"
+fi
+
 # Run the VS Code integration server
 if [ "$PRODUCTION_MODE" = true ]; then
     echo "Starting VS Code integration server in production mode..."
     cd "$BASE_DIR"
-    python -m backend.vscode_integration --production > "$LOG_DIR/vscode_server_$TIMESTAMP.log" 2>&1 &
+    python -m backend.vscode_integration --production $PORT_OPTION > "$LOG_DIR/vscode_server_$TIMESTAMP.log" 2>&1 &
     PID=$!
     echo "Server started with PID: $PID (Logs in $LOG_DIR/vscode_server_$TIMESTAMP.log)"
 elif [ "$DEBUG_MODE" = true ]; then
     echo "Starting VS Code integration server in debug mode..."
     cd "$BASE_DIR"
-    python -m backend.vscode_integration --debug
+    python -m backend.vscode_integration --debug $PORT_OPTION
 else
     echo "Starting VS Code integration server..."
     cd "$BASE_DIR"
-    python backend/vscode_integration.py
+    python backend/vscode_integration.py $PORT_OPTION
 fi
 
 # If running in background, provide instructions to kill

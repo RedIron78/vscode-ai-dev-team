@@ -8,8 +8,8 @@ class LlamaCppInterface:
     
     def __init__(
         self, 
-        api_url: str = "http://localhost:8080/v1", 
-        model_name: str = "mistral",
+        api_url: str = None, 
+        model_name: str = None,
         temperature: float = 0.7,
         max_tokens: int = 512,
         top_p: float = 0.95,
@@ -17,12 +17,17 @@ class LlamaCppInterface:
         """Initialize the LlamaCpp interface.
         
         Args:
-            api_url: URL of the llama.cpp server API
-            model_name: Name of the model to use (default: mistral)
-            temperature: Sampling temperature (default: 0.7)
-            max_tokens: Maximum number of tokens to generate (default: 512)
-            top_p: Top-p sampling parameter (default: 0.95)
+            api_url: The URL of the API.
+            model_name: The name of the model to use.
+            temperature: The temperature to use for sampling.
+            max_tokens: The maximum number of tokens to generate.
+            top_p: The top_p value to use for sampling.
         """
+        # Use environment variables if provided, with suitable fallbacks
+        api_url = api_url or os.environ.get("VSCODE_AGENT_LLM_URL", 
+                 os.environ.get("LLAMA_CPP_API_URL", "http://localhost:8081/v1"))
+        model_name = model_name or os.environ.get("LLAMA_CPP_MODEL", "openchat")
+        
         self.api_url = api_url
         self.model_name = model_name
         self.temperature = temperature
@@ -158,7 +163,8 @@ def create_llm_interface(
         LlamaCppInterface instance
     """
     # Allow overriding configuration via environment variables
-    api_url = api_url or os.environ.get("LLAMA_CPP_API_URL", "http://localhost:8081/v1")
+    api_url = api_url or os.environ.get("VSCODE_AGENT_LLM_URL", 
+             os.environ.get("LLAMA_CPP_API_URL", "http://localhost:8081/v1"))
     model_name = model_name or os.environ.get("LLAMA_CPP_MODEL", "openchat")
     
     print(f"Creating LLM interface with API URL: {api_url}, model: {model_name}")

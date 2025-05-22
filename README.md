@@ -13,7 +13,8 @@ A VS Code extension that provides an AI coding assistant powered by local Large 
 - 📝 **Code Completion**: Get context-aware code completions
 - 🔒 **Privacy-Focused**: All processing happens locally - your code never leaves your computer
 - ⚙️ **Fully Configurable**: Easy configuration via simple YAML file
-- 🔌 **Plug and Play**: One-click installation and startup
+- 🔌 **Cross-Platform**: Full support for Windows, Linux, and macOS
+- 🛠️ **Smart Port Management**: Automatic port conflict detection and resolution
 
 ## Complete Documentation
 
@@ -70,9 +71,9 @@ The extension is fully configurable through the `config.yml` file in the root di
 ```yaml
 # Sample configuration (partial)
 llm:
-  default_model: "models/Mistral-7B-Instruct-v0.2.Q4_K_M.gguf"
+  default_model: "models/mistral-7b-instruct-v0.2.Q4_K_M.gguf"
   host: "127.0.0.1"
-  port: 8080
+  port: 8081
   gpu_layers: 35  # Number of layers to offload to GPU
 
 backend:
@@ -98,7 +99,8 @@ The extension works with any GGUF model. We provide easy model download function
 
 ```bash
 # Download a model interactively
-./scripts/download_model.sh
+./scripts/download_model.sh   # Linux/macOS
+scripts\download_model.bat    # Windows
 ```
 
 Or choose from our recommended models for different system capabilities:
@@ -158,8 +160,9 @@ The extension is designed to be easily extensible:
 
 1. **Custom Models**: Any GGUF model can be used
 2. **Configuration**: All components are configurable via `config.yml`
-3. **Scripts**: Modular scripts in the `scripts/` directory
+3. **Scripts**: Modular scripts in the `scripts/` directory support all major operating systems
 4. **Open Architecture**: Each component can be replaced or extended
+5. **Smart Port Management**: The system automatically finds available ports if the default ones are in use
 
 ## Stopping the Services
 
@@ -169,6 +172,17 @@ When you're done, stop all services:
 ./stop_all.sh    # Linux/macOS
 stop_all.bat     # Windows
 ```
+
+## Testing
+
+To run the automated test suite:
+
+```bash
+./run_tests.sh    # Linux/macOS
+run_tests.bat     # Windows
+```
+
+This runs a comprehensive test suite across all components of the system.
 
 ## License
 

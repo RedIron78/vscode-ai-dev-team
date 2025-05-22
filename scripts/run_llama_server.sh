@@ -7,10 +7,49 @@ MODELS_DIR="$PROJECT_ROOT/models"
 
 # Default values
 MODEL_PATH=""  # Will be set after checking models directory
-HOST="127.0.0.1"
-PORT="8081"
-THREADS=4
-GPU_LAYERS=35  # Number of layers to offload to GPU, set to 0 for CPU only
+HOST="${LLM_HOST:-127.0.0.1}"
+PORT="${LLM_PORT:-8081}"
+THREADS="${LLM_THREADS:-4}"
+GPU_LAYERS="${LLM_GPU_LAYERS:-35}"  # Number of layers to offload to GPU, set to 0 for CPU only
+
+# Function to check if a port is in use
+port_in_use() {
+    local port=$1
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -i :"$port" >/dev/null 2>&1
+        return $?
+    elif command -v netstat >/dev/null 2>&1; then
+        netstat -tuln | grep -q ":$port "
+        return $?
+    else
+        # Default to assuming port is free if we can't check
+        return 1
+    fi
+}
+
+# Function to find an available port
+find_available_port() {
+    local start_port=$1
+    local port=$start_port
+    
+    while port_in_use "$port"; do
+        port=$((port + 1))
+        # Safety check to prevent infinite loop
+        if [ "$port" -gt "$((start_port + 100))" ]; then
+            echo "Cannot find available port within reasonable range."
+            return 1
+        fi
+    done
+    
+    echo "$port"
+}
+
+# Check if the port is in use and find an available one if needed
+if port_in_use "$PORT"; then
+    echo "Warning: Port $PORT is already in use."
+    PORT=$(find_available_port "$PORT")
+    echo "Using alternative port: $PORT"
+fi
 
 # Display banner
 echo "======================================================"
