@@ -3,8 +3,12 @@
 # VS Code AI Dev Team - All-in-One Startup Script
 # This script starts all required services for the VS Code AI Dev Team extension
 
-# Set script to exit on error
-set -e
+# Track if we had any errors
+HAD_ERROR=0
+error_handler() {
+    HAD_ERROR=1
+    echo -e "${RED}❌ Error occurred: $1${NC}"
+}
 
 # Get the script's directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,7 +17,7 @@ cd "$SCRIPT_DIR"
 # Check if required files exist
 if [ ! -f "scripts/run_llama_server.sh" ] || [ ! -f "scripts/start_vscode_agent.sh" ]; then
     echo "Error: Required script files not found. Make sure you're in the project root directory."
-    exit 1
+    error_handler "Missing required script files"
 fi
 
 # Ensure scripts are executable
@@ -136,12 +140,12 @@ if [ "${config_backend_use_memory}" = "true" ]; then
         echo -e "${RED}❌ Docker is not installed.${NC}"
         echo -e "Please install Docker first: https://docs.docker.com/get-docker/"
         echo -e "${YELLOW}You can disable memory in config.yml by setting use_memory: false${NC}"
-        exit 1
+        error_handler "Docker not installed"
     elif ! docker info >/dev/null 2>&1; then
         echo -e "${RED}❌ Docker is not running.${NC}"
         echo -e "Please start Docker first."
         echo -e "${YELLOW}You can disable memory in config.yml by setting use_memory: false${NC}"
-        exit 1
+        error_handler "Docker not running"
     else
         echo -e "${GREEN}✅ Docker is running.${NC}"
     fi
@@ -173,7 +177,7 @@ if [ "${config_backend_use_memory}" = "true" ]; then
             echo -e "${GREEN}✅ Weaviate started successfully.${NC}"
         else
             echo -e "${RED}❌ Failed to start Weaviate.${NC}"
-            exit 1
+            error_handler "Failed to start Weaviate"
         fi
     else
         echo -e "${GREEN}✅ Weaviate is already running.${NC}"
@@ -193,7 +197,7 @@ else
     if [ ! -f "${config_llm_default_model}" ]; then
         echo -e "${RED}❌ Model file not found: ${config_llm_default_model}${NC}"
         echo -e "${YELLOW}You can download models using:${NC} ./scripts/download_model.sh"
-        exit 1
+        error_handler "Model file not found"
     fi
     
     # Creating named pipe for automatic input to LLM server
@@ -237,7 +241,7 @@ else
         echo -e "${RED}❌ Failed to start LLM server.${NC}"
         echo -e "  Check log for details: /tmp/llm_server.log"
         cat /tmp/llm_server.log
-        exit 1
+        error_handler "Failed to start LLM server"
     fi
 fi
 
@@ -272,7 +276,7 @@ else
         echo -e "${RED}❌ Failed to start VS Code agent.${NC}"
         echo -e "  Check log for details: /tmp/vscode_agent.log"
         cat /tmp/vscode_agent.log
-        exit 1
+        error_handler "Failed to start VS Code agent"
     fi
 fi
 
@@ -294,4 +298,18 @@ echo -e "  - Complete Code (Ctrl+Shift+C)"
 echo -e "  - Improve Code (Ctrl+Shift+I)"
 echo ""
 echo -e "${YELLOW}To stop services, run:${NC} ./stop_all.sh"
-echo -e "${BLUE}======================================================${NC}" 
+echo -e "${BLUE}======================================================${NC}"
+
+# Display status message based on errors
+if [ $HAD_ERROR -eq 1 ]; then
+    echo ""
+    echo -e "${RED}❌ There were errors during startup. Please review the messages above.${NC}"
+else
+    echo ""
+    echo -e "${GREEN}✅ All services started successfully.${NC}"
+fi
+
+# Keep the terminal open
+echo -e "${YELLOW}Terminal will remain open. Use Ctrl+C to exit.${NC}"
+# Wait for all background processes
+wait 

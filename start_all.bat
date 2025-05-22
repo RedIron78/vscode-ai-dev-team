@@ -1,6 +1,10 @@
 @echo off
 REM VS Code AI Dev Team - All-in-One Startup Script for Windows
 REM This script starts all required services for the VS Code AI Dev Team extension
+setlocal EnableDelayedExpansion
+
+REM Track if we had any errors
+set "HAD_ERROR=0"
 
 echo ======================================================
 echo  VS Code AI Dev Team - All-in-One Starter
@@ -104,14 +108,16 @@ if "%USE_MEMORY%"=="true" (
     if %ERRORLEVEL% NEQ 0 (
         echo Error: Docker is not installed but memory integration is enabled.
         echo Please install Docker first or disable memory in config.yml.
-        exit /b 1
+        set "HAD_ERROR=1"
+        goto :error_exit
     )
     
     docker info >nul 2>&1
     if %ERRORLEVEL% NEQ 0 (
         echo Error: Docker is not running but memory integration is enabled.
         echo Please start Docker first or disable memory in config.yml.
-        exit /b 1
+        set "HAD_ERROR=1"
+        goto :error_exit
     )
     
     echo Docker is running.
@@ -144,7 +150,8 @@ if "%USE_MEMORY%"=="true" (
             echo Weaviate started successfully.
         ) else (
             echo Failed to start Weaviate.
-            exit /b 1
+            set "HAD_ERROR=1"
+            goto :error_exit
         )
     ) else (
         echo Weaviate is already running.
@@ -157,7 +164,8 @@ REM Check if LLM model exists
 if not exist "%LLM_MODEL%" (
     echo Error: Model file not found: %LLM_MODEL%
     echo You can download models using scripts\download_model.sh
-    exit /b 1
+    set "HAD_ERROR=1"
+    goto :error_exit
 )
 
 REM Check if LLM server is already running
@@ -185,7 +193,8 @@ if %LLM_RUNNING% EQU 1 (
         echo LLM server started successfully.
     ) else (
         echo Failed to start LLM server.
-        exit /b 1
+        set "HAD_ERROR=1"
+        goto :error_exit
     )
 )
 
@@ -217,7 +226,8 @@ if %AGENT_RUNNING% EQU 1 (
         echo VS Code agent started successfully.
     ) else (
         echo Failed to start VS Code agent.
-        exit /b 1
+        set "HAD_ERROR=1"
+        goto :error_exit
     )
 )
 
@@ -238,6 +248,24 @@ echo   - Improve Code (Ctrl+Shift+I)
 echo.
 echo To stop services, run: stop_all.bat
 echo ======================================================
+goto :end
 
-REM Keep the window open
-pause 
+:error_exit
+echo.
+echo ======================================================
+echo  ERROR: Failed to start all services
+echo ======================================================
+echo.
+
+:end
+REM Display appropriate message based on success/failure
+if "!HAD_ERROR!"=="1" (
+    echo There were errors during startup. Please review the messages above.
+) else (
+    echo All services started successfully.
+)
+
+REM Keep the window open no matter what
+echo.
+echo Terminal will remain open. Press any key to exit.
+pause > nul 
