@@ -1,0 +1,170 @@
+{
+  "name": "vscode-ai-dev-team",
+  "displayName": "AI Dev Team",
+  "description": "VS Code integration for AI Dev Team with LLM and Memory",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages",
+    "Machine Learning",
+    "Snippets"
+  ],
+  "activationEvents": [
+    "onCommand:aidevteam.startServices",
+    "onCommand:aidevteam.askAI",
+    "onCommand:aidevteam.explainCode",
+    "onCommand:aidevteam.completeCode",
+    "onCommand:aidevteam.improveCode",
+    "onView:aidevteam.chatView"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aidevteam.startServices",
+        "title": "AI Dev Team: Start Services"
+      },
+      {
+        "command": "aidevteam.askAI",
+        "title": "AI Dev Team: Ask AI"
+      },
+      {
+        "command": "aidevteam.explainCode",
+        "title": "AI Dev Team: Explain Selected Code"
+      },
+      {
+        "command": "aidevteam.completeCode",
+        "title": "AI Dev Team: Complete Code"
+      },
+      {
+        "command": "aidevteam.improveCode",
+        "title": "AI Dev Team: Improve Selected Code"
+      },
+      {
+        "command": "aidevteam.showAgentOptions",
+        "title": "AI Dev Team: Show Agent Options"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aidevteam",
+          "title": "AI Dev Team",
+          "icon": "resources/ai-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "aidevteam": [
+        {
+          "id": "aidevteam.chatView",
+          "name": "Chat with AI",
+          "type": "webview"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "aidevteam.explainCode",
+          "when": "editorHasSelection",
+          "group": "ai_dev_team"
+        },
+        {
+          "command": "aidevteam.improveCode",
+          "when": "editorHasSelection",
+          "group": "ai_dev_team"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "aidevteam.askAI",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a"
+      },
+      {
+        "command": "aidevteam.explainCode",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "editorHasSelection"
+      },
+      {
+        "command": "aidevteam.completeCode",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c"
+      },
+      {
+        "command": "aidevteam.improveCode",
+        "key": "ctrl+shift+i",
+        "mac": "cmd+shift+i",
+        "when": "editorHasSelection"
+      }
+    ],
+    "configuration": {
+      "title": "AI Dev Team",
+      "properties": {
+        "aidevteam.agentApiUrl": {
+          "type": "string",
+          "default": "http://localhost:5000/api/agent",
+          "description": "URL of the AI Dev Team agent API"
+        },
+        "aidevteam.autoStartServices": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start AI services when extension is activated"
+        },
+        "aidevteam.useMemory": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use Weaviate memory to provide context to the AI"
+        },
+        "aidevteam.llmModel": {
+          "type": "string",
+          "default": "openchat",
+          "enum": [
+            "openchat",
+            "mistral",
+            "llama3"
+          ],
+          "description": "The LLM model to use for AI capabilities"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint .",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^16.18.126",
+    "@types/vscode": "^1.100.0",
+    "eslint": "^8.2.0",
+    "mocha": "^11.3.0",
+    "typescript": "^5.8.3",
+    "vsce": "^2.5.0"
+  },
+  "dependencies": {
+    "axios": "^0.24.0",
+    "node-fetch": "^3.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/vscode-ai-dev-team.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yourusername/vscode-ai-dev-team/issues"
+  },
+  "homepage": "https://github.com/yourusername/vscode-ai-dev-team#readme",
+  "keywords": [],
+  "author": ""
+}
