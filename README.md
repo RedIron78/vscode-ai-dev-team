@@ -1,136 +1,127 @@
-# VS Code AI Dev Team Extension
+# VS Code AI Dev Team
 
-This extension integrates an AI agent with vector memory into Visual Studio Code, providing intelligent code assistance, explanation, and completion capabilities.
+A VS Code extension that provides an AI coding assistant powered by local Large Language Models. Bring the power of AI into your development workflow while keeping all your code and data private and secure on your own machine.
+
+![VS Code AI Dev Team Banner](https://i.imgur.com/DsRhFQh.png)
 
 ## Features
 
-- AI-powered code explanations
-- Intelligent code completion
-- Code improvement suggestions
-- Chat with AI for project-related questions
-- Vector memory for context-aware responses
+- 🤖 **Local AI Coding Assistant**: Run powerful Large Language Models on your own machine
+- 🧠 **Contextual Memory**: The AI remembers your project structure and previous conversations
+- 🔍 **Code Explanations**: Get explanations for complex code snippets
+- ✨ **Code Improvements**: Receive suggestions to improve your code
+- 📝 **Code Completion**: Get context-aware code completions
+- 🔒 **Privacy-Focused**: All processing happens locally - your code never leaves your computer
 
-## Installation and Setup
+## Complete Documentation
 
-### Prerequisites
+For detailed installation instructions, usage guide, and troubleshooting:
 
-Before installing the extension, make sure you have:
+- [Complete Guide (Markdown)](./COMPLETE-GUIDE.md)
 
-- Python 3.8+ with venv module
-- Node.js and npm
-- Docker and docker-compose (for Weaviate vector database)
-- Visual Studio Code
+## Quick Start
 
-### Step 1: Set up the Project
+Once installed, start using the extension with these simple steps:
 
-Clone the repository:
-
-```bash
-git clone https://github.com/YOUR-USERNAME/vscode-ai-dev-team.git
-cd vscode-ai-dev-team
-```
-
-Or run the setup script to organize the repository structure:
-
-```bash
-chmod +x setup_extension.sh
-./setup_extension.sh
-```
-
-### Step 2: Install Dependencies
-
-Run the installation script to set up all required components:
-
-```bash
-chmod +x scripts/install.sh
-./scripts/install.sh
-```
-
-This script will:
-- Create a Python virtual environment and install dependencies
-- Install Node.js dependencies for the extension
-- Start Weaviate in Docker (if Docker is installed)
-- Create necessary directories for models and memory
-
-### Step 3: Start the Backend Server
-
-Start the VS Code integration server:
-
-```bash
-source venv/bin/activate
-./scripts/start_vscode_agent.sh
-```
-
-The server will run at http://localhost:5000 and provide AI capabilities to the VS Code extension.
-
-### Step 4: Build and Install the VS Code Extension
-
-Build and package the extension:
-
-```bash
-cd extension
-npm run compile
-npm run package
-```
-
-Install the extension in VS Code:
-1. Open VS Code
-2. Go to Extensions panel (Ctrl+Shift+X)
-3. Click "..." menu in the top-right corner
-4. Select "Install from VSIX..."
-5. Navigate to `extension/vscode-ai-dev-team-0.1.0.vsix` and select it
-
-## Using the Extension
-
-Once installed, you can use these keyboard shortcuts:
-
-- **Ask AI**: `Ctrl+Shift+A` - Ask a general question about your code
-- **Explain Code**: `Ctrl+Shift+E` - Get an explanation of selected code
-- **Complete Code**: `Ctrl+Shift+C` - Get code completion suggestions
-- **Improve Code**: `Ctrl+Shift+I` - Get suggestions to improve selected code
-
-You can also access these features through the Command Palette (`Ctrl+Shift+P`):
-- AI Dev Team: Ask AI
-- AI Dev Team: Explain Selected Code
-- AI Dev Team: Complete Code
-- AI Dev Team: Improve Selected Code
-
-## Troubleshooting
-
-If you encounter issues:
-
-1. Check the "VS Code Agent" output channel in VS Code
-2. Verify that the agent server is running:
+1. Start the backend services:
    ```bash
-   ps aux | grep vscode_integration.py
-   ```
-3. Check that Weaviate is running:
-   ```bash
-   docker ps | grep weaviate
-   ```
-4. Restart the server if needed:
-   ```bash
-   ./scripts/start_vscode_agent.sh
+   ./start_all.sh  # or start_all.bat on Windows
    ```
 
-## Project Structure
+2. Open VS Code and access AI features via:
+   - Command Palette (Ctrl+Shift+P or ⌘+Shift+P)
+   - Type "AI Dev Team" to see available commands
+
+3. Try these commands:
+   - **Ask AI** (Ctrl+Shift+A): Ask questions about coding
+   - **Explain Selected Code** (Ctrl+Shift+E): Get explanations
+   - **Complete Code** (Ctrl+Shift+C): Get code completion suggestions
+   - **Improve Selected Code** (Ctrl+Shift+I): Get improvement suggestions
+
+## System Requirements
+
+- **OS**: Windows 10/11, macOS 10.15+, or Linux
+- **RAM**: Minimum 8GB (16GB recommended)
+- **Storage**: 5GB for minimal installation
+- **GPU**: Optional but recommended for faster performance
+  - NVIDIA GPU with CUDA support (for NVIDIA users)
+  - Apple Silicon M1/M2/M3 (optimized for Mac users)
+
+## Models
+
+The extension works with any GGUF model. We provide direct download links for models tailored to different system capabilities:
+
+### Entry-Level Systems (2-4GB RAM, Integrated Graphics)
+- **[TinyLlama-1.1B-Chat-v1.0 (Q4_K_M)](https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf)** (1.1GB)
+  - Perfect for systems with limited resources
+  - Works well on laptops with integrated graphics
+  - Fast responses, but less capable than larger models
+  - Memory usage: ~2GB RAM
+
+### Mid-Range Systems (8-16GB RAM, Basic GPU)
+- **[Mistral-7B-Instruct-v0.2 (Q5_K_M)](https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q5_K_M.gguf)** (5.3GB)
+  - Great balance between quality and resource usage
+  - Excellent code understanding and generation
+  - Memory usage: ~8GB RAM
+  - Recommended for most users
+
+### High-End Systems (16GB+ RAM, Dedicated GPU)
+- **[Mixtral-8x7B-Instruct-v0.1 (Q4_K_M)](https://huggingface.co/TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF/resolve/main/mixtral-8x7b-instruct-v0.1.Q4_K_M.gguf)** (13.4GB)
+  - State-of-the-art code understanding and generation
+  - Excellent reasoning and problem-solving
+  - Memory usage: ~24GB RAM
+  - Requires a powerful GPU with 8GB+ VRAM for good performance
+
+### Model Installation Instructions
+
+See the [Complete Guide](./COMPLETE-GUIDE.md#model-selection-guide) for detailed model installation instructions.
+
+## Architecture
+
+The VS Code AI Dev Team extension consists of several components:
+
+1. **VS Code Extension**: TypeScript extension integrating with VS Code
+2. **Python Backend**: Coordinates between VS Code and the AI
+3. **LLM Server**: Local large language model running via llama.cpp
+4. **Weaviate**: Vector database for storing project knowledge
 
 ```
-vscode-ai-dev-team/
-├── extension/                 # VS Code extension code
-│   ├── src/                   # TypeScript source
-│   ├── resources/             # Extension resources
-│   ├── package.json           # Extension manifest
-│   └── ...                    # Other extension files
-├── backend/                   # Python backend services
-│   ├── agent_roles.py         # Agent definitions
-│   ├── vscode_agent.py        # VS Code agent implementation
-│   ├── vscode_integration.py  # API server for VS Code
-│   ├── llm_interface.py       # LLM connection interface
-│   └── requirements.txt       # Python dependencies
-├── scripts/                   # Helper scripts
-│   ├── install.sh             # Installation script
-│   ├── start_vscode_agent.sh  # Start the agent server
-│   └── run_llama_server.sh    # Run LLM server
-└── docker-compose.yml         # Weaviate Docker compose file
-``` 
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│                 │    │                 │    │                 │
+│   VS Code       │    │   Python        │    │   LLM           │
+│   Extension     │◄───┤   Backend       │◄───┤   Server        │
+│   (TypeScript)  │    │   (Flask)       │    │   (llama.cpp)   │
+│                 │    │                 │    │                 │
+└─────────────────┘    └───────┬─────────┘    └─────────────────┘
+                               │
+                               ▼
+                       ┌─────────────────┐
+                       │                 │
+                       │   Weaviate      │
+                       │   Vector DB     │
+                       │   (Docker)      │
+                       │                 │
+                       └─────────────────┘
+```
+
+## Stopping the Services
+
+When you're done, stop all services:
+
+```bash
+./stop_all.sh  # or stop_all.bat on Windows
+```
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgements
+
+- [llama.cpp](https://github.com/ggerganov/llama.cpp) for the efficient LLM inference
+- [Weaviate](https://weaviate.io/) for the vector database
+- [All contributors](https://github.com/YOUR-USERNAME/vscode-ai-dev-team/graphs/contributors)
+
+---
+
+Made with ❤️ for developers who want AI assistance without sacrificing privacy or performance. 

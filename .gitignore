@@ -38,14 +38,35 @@ out/
 # Docker
 .docker/
 docker-data/
+weaviate-data/
 
 # Logs
 logs/
 *.log
+/tmp/llm_server.log
+/tmp/vscode_agent.log
 
 # Memory and models directories (may contain large files)
 models/
 memory/
+
+# External dependencies
+llama.cpp/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Binaries and compiled files
+*.bin
+*.exe
+*.dll
+*.o
+*.a
+
+# Temporary directories
+/tmp/ai-dev-team/
 
 # Editor directories and files
 .idea/
