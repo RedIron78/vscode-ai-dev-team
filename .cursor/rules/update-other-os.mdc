@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+whenever you change a file update all os specific versoins of that file to function in the same manor

@@ -2,6 +2,7 @@ import requests
 import json
 import os
 from typing import Dict, List, Optional, Union, Any
+from port_utils import get_llm_config
 
 class LlamaCppInterface:
     """Interface for communicating with llama.cpp server running Mistral or other models."""
@@ -24,8 +25,10 @@ class LlamaCppInterface:
             top_p: The top_p value to use for sampling.
         """
         # Use environment variables if provided, with suitable fallbacks
-        api_url = api_url or os.environ.get("VSCODE_AGENT_LLM_URL", 
-                 os.environ.get("LLAMA_CPP_API_URL", "http://localhost:8081/v1"))
+        if api_url is None:
+            llm_config = get_llm_config()
+            api_url = llm_config['url']
+        
         model_name = model_name or os.environ.get("LLAMA_CPP_MODEL", "openchat")
         
         self.api_url = api_url
@@ -141,7 +144,7 @@ class LlamaCppInterface:
         try:
             # Try to get the list of models
             url = f"{self.api_url}/models"
-            response = requests.get(url, timeout=5)
+            response = requests.get(url, timeout=30)
             return response.status_code == 200
         except requests.RequestException:
             return False
@@ -162,9 +165,11 @@ def create_llm_interface(
     Returns:
         LlamaCppInterface instance
     """
-    # Allow overriding configuration via environment variables
-    api_url = api_url or os.environ.get("VSCODE_AGENT_LLM_URL", 
-             os.environ.get("LLAMA_CPP_API_URL", "http://localhost:8081/v1"))
+    # Allow overriding configuration via environment variables or port info
+    if api_url is None:
+        llm_config = get_llm_config()
+        api_url = llm_config['url']
+    
     model_name = model_name or os.environ.get("LLAMA_CPP_MODEL", "openchat")
     
     print(f"Creating LLM interface with API URL: {api_url}, model: {model_name}")

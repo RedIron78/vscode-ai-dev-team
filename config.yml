@@ -3,7 +3,7 @@
 # LLM Server Configuration
 llm:
   # Default model to use
-  default_model: "models/mistral-7b-instruct-v0.2.Q4_K_M.gguf"
+  default_model: "models/Llama-4-Scout-17B-16E-Instruct-UD-Q4_K_XL-00001-of-00002.gguf"
   # Server host
   host: "127.0.0.1"
   # Server port
@@ -35,7 +35,7 @@ weaviate:
   # Host
   host: "localhost"
   # Port
-  port: 8090
+  port: 8083
   # Schema name
   schema_name: "VSCodeAssistant"
   # Class name

@@ -7,13 +7,47 @@ set "SCRIPT_DIR=%~dp0"
 set "PROJECT_ROOT=%SCRIPT_DIR%.."
 set "MODELS_DIR=%PROJECT_ROOT%\models"
 
+REM Function to check model size and set appropriate GPU layers
+:CheckModelSize
+setlocal
+set "MODEL_PATH=%~1"
+set "DEFAULT_LAYERS=%~2"
+
+REM Check if model is a 17B model
+echo %MODEL_PATH% | findstr "17B" >nul
+if %ERRORLEVEL% EQU 0 (
+    echo Model is very large, using minimal GPU acceleration (1 layer) to avoid out-of-memory errors
+    endlocal & set "%~3=1"
+    exit /b
+)
+
+REM Check if model is extremely large (34B or 70B)
+echo %MODEL_PATH% | findstr "34B 70B" >nul
+if %ERRORLEVEL% EQU 0 (
+    echo Model is extremely large for consumer GPUs, using CPU-only mode (0 GPU layers)
+    endlocal & set "%~3=0"
+    exit /b
+)
+
+REM Default case - use provided default layers
+endlocal & set "%~3=%DEFAULT_LAYERS%"
+exit /b
+
 REM Default values - use environment variables if set, otherwise use defaults
 if not defined LLM_MODEL set "MODEL_PATH="
+if defined LLM_MODEL set "MODEL_PATH=%LLM_MODEL%"
 if not defined LLM_HOST set "HOST=127.0.0.1"
 if not defined LLM_PORT set "PORT=8081"
 if not defined LLM_THREADS set "THREADS=4"
-if not defined LLM_GPU_LAYERS set "GPU_LAYERS=35"
+if not defined LLM_GPU_LAYERS set "DEFAULT_GPU_LAYERS=35"
 if not defined LLM_CONTEXT_SIZE set "CONTEXT_SIZE=2048"
+
+REM Determine appropriate GPU layers based on model size if MODEL_PATH is defined
+if defined MODEL_PATH (
+    call :CheckModelSize "%MODEL_PATH%" %DEFAULT_GPU_LAYERS% GPU_LAYERS
+) else (
+    set "GPU_LAYERS=%DEFAULT_GPU_LAYERS%"
+)
 
 REM Function to check if port is in use
 :IsPortInUse
@@ -59,6 +93,22 @@ echo ======================================================
 echo  Llama.cpp Server Launcher for AI Dev Team
 echo ======================================================
 
+REM Check if MODEL_PATH is already set from environment variable
+if defined MODEL_PATH (
+    echo Using model from environment: %MODEL_PATH%
+    
+    REM Check if this is a multi-part model (part 1 of N)
+    echo %MODEL_PATH% | findstr "-00001-of-" >nul
+    if %ERRORLEVEL% EQU 0 (
+        echo Detected split GGUF model. Will use the base part.
+    )
+    
+    REM Set appropriate GPU layers based on model size
+    call :CheckModelSize "%MODEL_PATH%" %DEFAULT_GPU_LAYERS% GPU_LAYERS
+    
+    goto :found_model
+)
+
 REM Check for models in the models directory
 if exist "%MODELS_DIR%" (
     echo Models found in %MODELS_DIR%:
@@ -68,6 +118,10 @@ if exist "%MODELS_DIR%" (
     for /f "delims=" %%i in ('dir /b "%MODELS_DIR%\*.gguf" 2^>nul') do (
         set "MODEL_PATH=%MODELS_DIR%\%%i"
         echo Using model: !MODEL_PATH!
+        
+        REM Set appropriate GPU layers based on model size
+        call :CheckModelSize "!MODEL_PATH!" %DEFAULT_GPU_LAYERS% GPU_LAYERS
+        
         goto :found_model
     )
 ) else (
@@ -116,12 +170,12 @@ if not defined MODEL_PATH (
     )
 )
 
-REM Allow user to specify CPU-only mode
-set /p CPU_ONLY=Run on CPU only? (y/N): 
-if /i "%CPU_ONLY%"=="y" (
-    set "GPU_LAYERS=0"
-    echo Running in CPU-only mode
-)
+REM Allow user to specify CPU-only mode (commented out as we now make decision based on model size)
+REM set /p CPU_ONLY=Run on CPU only? (y/N): 
+REM if /i "%CPU_ONLY%"=="y" (
+REM     set "GPU_LAYERS=0"
+REM     echo Running in CPU-only mode
+REM )
 
 echo Using model: %MODEL_PATH%
 echo Using llama-server at: %LLAMA_SERVER_PATH%

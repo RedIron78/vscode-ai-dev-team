@@ -187,29 +187,49 @@ if "%USE_MEMORY%"=="true" (
     )
     
     echo Docker is running.
-)
+    
+    REM Ensure memory directory exists
+    if not exist memory\weaviate_data mkdir memory\weaviate_data
+    
+    REM Create .env file for docker-compose
+    (
+        echo WEAVIATE_PORT=%WEAVIATE_PORT%
+        echo WEAVIATE_GRPC_PORT=%WEAVIATE_GRPC_PORT%
+    ) > .env
 
-REM Activate virtual environment
-if not exist venv (
-    echo Creating virtual environment...
-    python -m venv venv
-    call venv\Scripts\activate.bat
-    pip install --upgrade pip
-    pip install -r backend\requirements.txt
-) else (
-    call venv\Scripts\activate.bat
-)
-
-REM Start Weaviate if memory is enabled
-if "%USE_MEMORY%"=="true" (
-    echo Checking Weaviate status...
+    REM Check if Weaviate is already running
     docker ps | findstr "weaviate" >nul
-    if %ERRORLEVEL% NEQ 0 (
-        echo Starting Weaviate database...
+    if %ERRORLEVEL% EQU 0 (
+        echo Weaviate is already running, checking port configuration...
         
-        REM Check if we need to update the port in docker-compose.yml
-        powershell -Command "(Get-Content docker-compose.yml) -replace '- \"[0-9]+:8080\"', '- \"%WEAVIATE_PORT%:8080\"' | Set-Content docker-compose.yml"
+        REM Check if it's using the correct ports
+        for /f "tokens=*" %%i in ('docker ps ^| findstr weaviate ^| findstr -o "0.0.0.0:.*->8080/tcp"') do (
+            set "PORT_STR=%%i"
+        )
         
+        if defined PORT_STR (
+            for /f "tokens=2 delims=:" %%j in ('echo !PORT_STR!') do (
+                for /f "tokens=1 delims=-" %%k in ('echo %%j') do (
+                    set "CURRENT_PORT=%%k"
+                )
+            )
+            
+            if "!CURRENT_PORT!" NEQ "%WEAVIATE_PORT%" (
+                echo Weaviate is running on port !CURRENT_PORT! but we need port %WEAVIATE_PORT%
+                echo Stopping current instance and restarting with correct port...
+                docker-compose down
+                docker-compose up -d
+                
+                echo Waiting for Weaviate to initialize (10 seconds)...
+                timeout /t 10 /nobreak >nul
+            ) else (
+                echo Weaviate is already running on the correct port.
+            )
+        ) else (
+            echo Unable to determine current Weaviate port, continuing...
+        )
+    ) else (
+        REM Start Docker container for Weaviate
         docker-compose up -d
         
         echo Waiting for Weaviate to initialize (10 seconds)...
@@ -221,10 +241,7 @@ if "%USE_MEMORY%"=="true" (
         ) else (
             echo Failed to start Weaviate.
             set "HAD_ERROR=1"
-            goto :error_exit
         )
-    ) else (
-        echo Weaviate is already running.
     )
 ) else (
     echo Memory integration is disabled in config.yml. Skipping Weaviate startup.
@@ -248,8 +265,23 @@ if %LLM_RUNNING% EQU 1 (
 ) else (
     echo Starting LLM server...
     
-    REM Set environment variables for LLM server
+    REM Pass configuration to LLM server
     set "LLM_MODEL=%LLM_MODEL%"
+    set "LLM_PORT=%LLM_PORT%"
+    set "LLM_HOST=%LLM_HOST%"
+    set "LLM_THREADS=%THREADS%"
+    set "LLM_CONTEXT_SIZE=%CONTEXT_SIZE%"
+
+    REM Set appropriate GPU layers based on model size
+    echo %LLM_MODEL% | findstr "Llama-4.*17B" >nul
+    if %ERRORLEVEL% EQU 0 (
+        echo Warning: Large model detected. Setting fewer GPU layers to avoid out-of-memory errors.
+        set "LLM_GPU_LAYERS=4"
+    ) else (
+        set "LLM_GPU_LAYERS=%GPU_LAYERS%"
+    )
+
+    set "LLM_TEMPERATURE=%TEMPERATURE%"
     
     REM Start LLM server in a new window
     start "LLM Server" cmd /c "scripts\run_llama_server.bat < con: > logs\llm_server.log"
@@ -287,6 +319,22 @@ if %AGENT_RUNNING% EQU 1 (
     set "USE_MEMORY=%USE_MEMORY%"
     set "LLM_API_URL=http://%LLM_HOST%:%LLM_PORT%"
     
+    REM Add environment variables specifically for the agent
+    set "VSCODE_AGENT_LLM_HOST=%LLM_HOST%"
+    set "VSCODE_AGENT_LLM_PORT=%LLM_PORT%"
+    set "VSCODE_AGENT_PORT=%BACKEND_PORT%"
+    set "VSCODE_AGENT_HOST=%BACKEND_HOST%"
+    set "VSCODE_AGENT_DEBUG=%DEBUG%"
+    set "VSCODE_AGENT_USE_MEMORY=%USE_MEMORY%"
+    set "VSCODE_AGENT_WEAVIATE_PORT=%WEAVIATE_PORT%"
+    set "VSCODE_AGENT_LLM_URL=http://%LLM_HOST%:%LLM_PORT%/v1"
+
+    REM Print out the environment variables for debugging
+    echo Setting VS Code agent environment variables:
+    echo   VSCODE_AGENT_LLM_HOST: %VSCODE_AGENT_LLM_HOST%
+    echo   VSCODE_AGENT_LLM_PORT: %VSCODE_AGENT_LLM_PORT%
+    echo   VSCODE_AGENT_LLM_URL: %VSCODE_AGENT_LLM_URL%
+    
     REM Start VS Code agent in a new window
     start "VS Code Agent" cmd /c "python -m flask run --host=%FLASK_HOST% --port=%FLASK_PORT%"
     
@@ -301,6 +349,21 @@ if %AGENT_RUNNING% EQU 1 (
         set "HAD_ERROR=1"
         goto :error_exit
     )
+)
+
+REM Create/update Weaviate schema
+echo Setting up Weaviate schema...
+
+python backend\create_schema.py
+set SCHEMA_RESULT=%ERRORLEVEL%
+if %SCHEMA_RESULT% EQU 0 (
+    echo Weaviate schema created successfully.
+) else if %SCHEMA_RESULT% EQU 1 (
+    echo Warning: Weaviate schema setup reported a warning but we can continue.
+    echo Check log for details: "%TEMP%\create_schema.log"
+) else (
+    echo Failed to create Weaviate schema.
+    set "HAD_ERROR=1"
 )
 
 if "%HAD_ERROR%"=="0" (

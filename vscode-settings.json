@@ -1,0 +1,6 @@
+{
+    "aidevteam.agentApiUrl": "http://localhost:5002/api/agent",
+    "aidevteam.autoStartServices": false,
+    "aidevteam.useMemory": true,
+    "aidevteam.llmModel": "openchat"
+} 

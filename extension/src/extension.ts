@@ -26,6 +26,7 @@ function getAgentApiUrl(): string {
     if (fs.existsSync(portFilePath)) {
       const port = fs.readFileSync(portFilePath, 'utf8').trim();
       if (port && /^\d+$/.test(port)) {
+        console.log(`Found port ${port} in ${portFilePath}`);
         return `http://localhost:${port}/api/agent`;
       }
     }
@@ -196,47 +197,51 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Register the showAgentOptions command used by the status bar
   const showAgentOptions = vscode.commands.registerCommand('aidevteam.showAgentOptions', () => {
-    vscode.commands.executeCommand('aidevteam.startServices');
-    // Show a quick pick to allow selecting different AI features
-    vscode.window.showQuickPick([
-      'Ask AI a question',
-      'Explain selected code',
-      'Complete code',
-      'Improve selected code'
-    ], {
-      placeHolder: 'Select an AI feature to use'
-    }).then(selected => {
-      if (selected === 'Ask AI a question') {
-        vscode.commands.executeCommand('aidevteam.askAI');
-      } else if (selected === 'Explain selected code') {
-        vscode.commands.executeCommand('aidevteam.explainCode');
-      } else if (selected === 'Complete code') {
-        vscode.commands.executeCommand('aidevteam.completeCode');
-      } else if (selected === 'Improve selected code') {
-        vscode.commands.executeCommand('aidevteam.improveCode');
+    const options = [
+      { label: "Start AI Services", description: "Start all AI services", command: "aidevteam.startServices" },
+      { label: "Ask AI", description: "Ask the AI a question", command: "aidevteam.askAI" },
+      { label: "Explain Code", description: "Explain selected code", command: "aidevteam.explainCode" },
+      { label: "Complete Code", description: "Complete the current code", command: "aidevteam.completeCode" },
+      { label: "Improve Code", description: "Get suggestions to improve selected code", command: "aidevteam.improveCode" }
+    ];
+    
+    vscode.window.showQuickPick(options, {
+      placeHolder: "Select an AI action"
+    }).then(selection => {
+      if (selection) {
+        vscode.commands.executeCommand(selection.command);
       }
     });
   });
   
-  context.subscriptions.push(showAgentOptions);
-
-  // Create status bar item to provide quick access to the AI
-  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  statusBarItem.text = "$(rocket) AI Agent";
-  statusBarItem.tooltip = "Click to open AI Agent options";
-  statusBarItem.command = 'aidevteam.showAgentOptions';
-  statusBarItem.show();
-  
-  context.subscriptions.push(statusBarItem);
+  // Add to subscriptions
   context.subscriptions.push(startServices);
+  context.subscriptions.push(showAgentOptions);
+  
+  // Add a status bar item
+  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  statusBarItem.text = "$(robot) AI";
+  statusBarItem.tooltip = "AI Dev Team Assistant";
+  statusBarItem.command = "aidevteam.showAgentOptions";
+  statusBarItem.show();
+  context.subscriptions.push(statusBarItem);
+  
+  // Auto-start services if configured
+  const config = vscode.workspace.getConfiguration('aidevteam');
+  if (config.get('autoStartServices')) {
+    vscode.commands.executeCommand('aidevteam.startServices');
+  }
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {
-  // Shut down services gracefully if we started them
-  if (servicesRunning) {
+  // Stop all services when the extension is deactivated
+  try {
     stopServices();
+  } catch (error) {
+    console.error('Error stopping services:', error);
   }
+  
+  servicesRunning = false;
 }
 
 // AI Chat WebView Provider
@@ -458,6 +463,11 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
  * @returns Response data or error message
  */
 async function makeApiCallWithPortDiscovery(endpoint: string, data: any): Promise<any> {
+  // Ensure the data object exists
+  if (!data) {
+    data = {};
+  }
+
   // Get primary URL from settings
   const primaryUrl = getAgentApiUrl();
   const fullUrl = `${primaryUrl}${endpoint}`;
@@ -467,7 +477,7 @@ async function makeApiCallWithPortDiscovery(endpoint: string, data: any): Promis
   try {
     const response = await axios.post(fullUrl, data, {
       headers: DEFAULT_HEADERS,
-      timeout: 5000 // Add timeout to fail faster if service is not available
+      timeout: 15000 // Increase timeout for model processing
     });
     
     return response.data;
@@ -482,7 +492,7 @@ async function makeApiCallWithPortDiscovery(endpoint: string, data: any): Promis
       const basePath = url.pathname.split('/api/agent')[0];
       
       // Try common alternative ports
-      const alternativePorts = [5000, 5001, 5002, 5003, 5004, 5005];
+      const alternativePorts = [5002, 5000, 5001, 5003, 5004, 5005];
       for (const port of alternativePorts) {
         const alternativeBaseUrl = `http://${hostname}:${port}${basePath}/api/agent`;
         const alternativeFullUrl = `${alternativeBaseUrl}${endpoint}`;
@@ -491,7 +501,7 @@ async function makeApiCallWithPortDiscovery(endpoint: string, data: any): Promis
         try {
           const response = await axios.post(alternativeFullUrl, data, {
             headers: DEFAULT_HEADERS,
-            timeout: 3000 // Shorter timeout for alternative ports
+            timeout: 5000 // Shorter timeout for alternative ports
           });
           
           // If successful, update config for future requests
@@ -515,65 +525,83 @@ async function makeApiCallWithPortDiscovery(endpoint: string, data: any): Promis
 // Update sendGeneralQuery to use the helper function and add the required type field
 async function sendGeneralQuery(query: string, useMemory: boolean = true): Promise<string> {
   try {
-    const response = await makeApiCallWithPortDiscovery('/query', {
+    const response = await makeApiCallWithPortDiscovery('', {
       type: "general_query",  // Add this required field
       query,
       use_memory: useMemory
     });
     
-    return response.response;
+    if (response.status === "success") {
+      return response.response || "No response from the AI.";
+    } else {
+      return `Error: ${response.message || "Unknown error"}`;
+    }
   } catch (error: any) {
     console.error('Error sending query to agent:', error);
     if (axios.isAxiosError(error) && error.response?.status === 404) {
       return 'AI services are not running. Please start the services first with the "AI Dev Team: Start Services" command.';
     }
-    return `Error connecting to AI services. Please make sure the services are running and check the port configuration.`;
+    return `Error connecting to AI services: ${error.message}. Please make sure the services are running.`;
   }
 }
 
 // Update sendCodeExplanation to use the helper function
 async function sendCodeExplanation(code: string, fileType: string): Promise<string> {
   try {
-    const response = await makeApiCallWithPortDiscovery('/code_explanation', {
+    const response = await makeApiCallWithPortDiscovery('', {
       type: "code_explanation",  // Add this required field
       code,
       file_type: fileType
     });
     
-    return response.explanation;
+    if (response.status === "success") {
+      return response.explanation || "No explanation provided.";
+    } else {
+      return `Error: ${response.message || "Unknown error"}`;
+    }
   } catch (error: any) {
     console.error('Error sending code explanation request:', error);
-    return `Error connecting to AI services. Please make sure the services are running and check the port configuration.`;
+    return `Error connecting to AI services: ${error.message}. Please make sure the services are running.`;
   }
 }
 
 // Update sendCodeCompletion to use the helper function
 async function sendCodeCompletion(codeContext: string, fileType: string, request: string): Promise<string> {
   try {
-    const response = await makeApiCallWithPortDiscovery('/code_completion', {
+    const response = await makeApiCallWithPortDiscovery('', {
       type: "code_completion",  // Add this required field
-      context: codeContext,
+      code_context: codeContext,
       file_type: fileType,
       request
     });
     
-    return response.completion;
+    if (response.status === "success") {
+      return response.completion || "";
+    } else {
+      console.error('Code completion error:', response.message);
+      return `// Error: ${response.message || "Unknown error"}`;
+    }
   } catch (error: any) {
     console.error('Error sending code completion request:', error);
-    return '';
+    return `// Error connecting to AI services: ${error.message}`;
   }
 }
 
 // Update sendCodeImprovement to use the helper function
 async function sendCodeImprovement(code: string, fileType: string): Promise<string> {
   try {
-    const response = await makeApiCallWithPortDiscovery('/code_improvement', {
+    const response = await makeApiCallWithPortDiscovery('', {
       type: "code_improvement",  // Add this required field
       code,
       file_type: fileType
     });
     
-    return response.improved_code;
+    if (response.status === "success") {
+      return response.improvements || code;
+    } else {
+      console.error('Code improvement error:', response.message);
+      return code; // Return original code on error
+    }
   } catch (error: any) {
     console.error('Error sending code improvement request:', error);
     return code; // Return original code on error

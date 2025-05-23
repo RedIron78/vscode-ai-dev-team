@@ -6,12 +6,13 @@ import weaviate
 from weaviate.collections import Collection
 from weaviate.util import generate_uuid5
 from weaviate.classes import query
-from weaviate.collections.classes.config import DataType
+from weaviate.collections.classes.config import DataType, VectorDistances
 from dotenv import load_dotenv
 from uuid import uuid4
 import numpy as np
 from enum import Enum
 from typing import Optional, List, Dict, Union
+import yaml
 
 class Status(Enum):
     ACTIVE = "active"
@@ -27,6 +28,43 @@ class Priority(Enum):
     URGENT = 4
     CRITICAL = 5
 
+# Function to get configuration from config.yml
+def get_config():
+    # Default values
+    config = {
+        "weaviate": {
+            "host": "localhost",
+            "port": 8083,
+            "grpc_port": 50051
+        }
+    }
+    
+    # First check for port info in the central location
+    port_info_path = "/tmp/ai-dev-team/ports.json"
+    try:
+        if os.path.exists(port_info_path):
+            with open(port_info_path, 'r') as f:
+                port_info = json.load(f)
+                if 'weaviate_port' in port_info:
+                    config['weaviate']['port'] = port_info['weaviate_port']
+                if 'weaviate_grpc_port' in port_info:
+                    config['weaviate']['grpc_port'] = port_info['weaviate_grpc_port']
+                return config
+    except Exception as e:
+        print(f"Warning: Could not read port info from {port_info_path}: {e}")
+    
+    # If not found, try loading from config.yml
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.yml')
+    try:
+        with open(config_path, 'r') as f:
+            yaml_config = yaml.safe_load(f)
+            if yaml_config and 'weaviate' in yaml_config:
+                config['weaviate'].update(yaml_config['weaviate'])
+    except Exception as e:
+        print(f"Warning: Could not load config.yml: {e}")
+    
+    return config
+
 # Define the Agent class (common functionality for all agents)
 class Agent:
     def __init__(self, agent_id, role):
@@ -39,11 +77,19 @@ class Agent:
         self.model = SentenceTransformer(self.model_name)
         print(f"Initializing {role} agent...")
         
+        # Get configuration
+        config = get_config()
+        weaviate_host = config['weaviate']['host']
+        weaviate_port = config['weaviate']['port']
+        weaviate_grpc_port = config['weaviate']['grpc_port']
+        
+        print(f"Connecting to Weaviate at {weaviate_host}:{weaviate_port} (gRPC: {weaviate_grpc_port})")
+        
         # Connect to Weaviate
         self.client = weaviate.WeaviateClient(
             connection_params=weaviate.connect.ConnectionParams.from_url(
-                url="http://localhost:8080",
-                grpc_port=50051
+                url=f"http://{weaviate_host}:{weaviate_port}",
+                grpc_port=int(weaviate_grpc_port)
             )
         )
         self.client.connect()
@@ -415,6 +461,9 @@ class DevOpsAgent(Agent):
         print(f"Reported deployment result for context {context_id}: {'success' if success else 'failed'}")
 
 # Create agent instances
+# The following agent initializations and tests are disabled to prevent multiple agents from loading
+# Uncomment for testing purposes only
+"""
 frontend_agent = FrontendAgent(agent_id="frontend_agent_01")
 backend_agent = BackendAgent(agent_id="backend_agent_01")
 qa_agent = QAAgent(agent_id="qa_agent_01")
@@ -438,4 +487,5 @@ print("\nTesting DevOps Agent...")
 devops_agent.deploy_service("API Service", "v1.2.3")
 devops_agent.report_deployment_status("deployment_1", True)
 devops_agent.search_memory("What service was deployed?")
+"""
 

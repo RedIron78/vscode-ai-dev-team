@@ -482,4 +482,4 @@ echo -e "${YELLOW}Terminal will remain open. Use Ctrl+C to exit.${NC}"
 # Wait for all background processes, but don't exit if a background process fails
 set +e  # Disable exit on error for the wait command
 wait
-set -e  # Re-enable exit on error
+set -e  # Re-enable exit on errorset -e  # Re-enable exit on error

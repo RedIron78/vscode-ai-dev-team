@@ -6,6 +6,19 @@ from typing import Dict, Any
 from flask import Flask, request, jsonify, Response, make_response
 from datetime import datetime
 
+# Try different import approaches to support various ways of running the script
+try:
+    # Direct import when run as python -m backend.vscode_integration
+    from .port_utils import get_backend_port, save_port_info
+except (ImportError, ModuleNotFoundError):
+    try:
+        # Direct import when run within the backend directory
+        from port_utils import get_backend_port, save_port_info
+    except (ImportError, ModuleNotFoundError):
+        # Absolute import when run from project root
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from backend.port_utils import get_backend_port, save_port_info
+
 from vscode_agent import VSCodeAgent
 
 # Initialize the VSCodeAgent
@@ -238,176 +251,171 @@ def handle_openai_completion(request_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 def create_app():
-    """Create the Flask application."""
+    """Create the Flask app instance."""
     app = Flask(__name__)
-    app.logger.setLevel(os.getenv('LOG_LEVEL', 'INFO'))
-    
+
+    # Configure CORS headers for all routes
     @app.after_request
     def after_request(response):
-        """Add CORS headers to all responses."""
         response.headers.add('Access-Control-Allow-Origin', '*')
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
         response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
         return response
-    
+
+    # Handle preflight OPTIONS requests for CORS
     @app.route('/v1/<path:path>', methods=['OPTIONS'])
     def options_handler(path):
-        """Handle OPTIONS requests for CORS."""
-        return jsonify({})
-    
-    # Original endpoint for direct integration
+        return make_response('', 204)
+
+    # API endpoint for VS Code extension
     @app.route("/api/agent", methods=["POST"])
     def api_request():
+        """Handle general API requests from VS Code extension."""
         try:
-            request_json = request.get_json()
-            if not request_json:
-                return jsonify({"status": "error", "message": "Invalid JSON"}), 400
-            
-            app.logger.info(f"Received request: {request_json}")
-            response = handle_vscode_request(request_json)
-            return jsonify(response)
+            request_data = parse_vscode_request(request.data.decode('utf-8'))
+            response_data = handle_vscode_request(request_data)
+            return jsonify(response_data)
         except Exception as e:
-            app.logger.error(f"Error in api_request: {str(e)}", exc_info=True)
-            return jsonify({"status": "error", "message": str(e)}), 500
-    
-    # Add compatibility endpoint for clients using /api/agent/query
+            return jsonify({
+                "status": "error",
+                "message": f"An error occurred: {str(e)}"
+            })
+
+    # API endpoint for specific queries
     @app.route("/api/agent/query", methods=["POST"])
     def api_query_request():
+        """Handle query requests from VS Code extension."""
         try:
-            request_json = request.get_json()
-            if not request_json:
-                return jsonify({"status": "error", "message": "Invalid JSON"}), 400
-            
-            app.logger.info(f"Received request to /api/agent/query: {request_json}")
-            response = handle_vscode_request(request_json)
-            return jsonify(response)
+            request_data = parse_vscode_request(request.data.decode('utf-8'))
+            # Ensure the type is set to general_query for backward compatibility
+            if "type" not in request_data:
+                request_data["type"] = "general_query"
+            response_data = handle_vscode_request(request_data)
+            return jsonify(response_data)
         except Exception as e:
-            app.logger.error(f"Error in api_query_request: {str(e)}", exc_info=True)
-            return jsonify({"status": "error", "message": str(e)}), 500
-    
-    # Simple test endpoint to verify API connectivity
+            return jsonify({
+                "status": "error",
+                "message": f"An error occurred: {str(e)}"
+            })
+
+    # Test API endpoint
     @app.route("/api/test", methods=["GET"])
     def api_test():
         return jsonify({
-            "status": "available",
-            "message": "API connectivity test successful"
+            "status": "success",
+            "message": "VS Code Agent API is working!",
+            "version": "0.2.0"
         })
-    
-    # Test endpoint specifically for the query route
+
+    # Test query API endpoint
     @app.route("/api/agent/query/test", methods=["GET"])
     def api_query_test():
+        """Test endpoint for query API."""
         return jsonify({
-            "status": "available",
-            "message": "The /api/agent/query endpoint is available",
-            "server_time": datetime.now().isoformat()
+            "status": "success",
+            "message": "VS Code Agent Query API is working!",
+            "version": "0.2.0"
         })
-    
-    # OpenAI-compatible endpoints for VS Code integration
+
+    # OpenAI-compatible completions endpoint
     @app.route("/v1/completions", methods=["POST"])
     def completions():
+        """Handle OpenAI-style completion requests."""
         try:
-            request_json = request.get_json()
-            response = handle_openai_completion(request_json)
-            return jsonify(response)
+            request_data = request.json
+            response_data = handle_openai_completion(request_data)
+            return jsonify(response_data)
         except Exception as e:
-            app.logger.error(f"Error in completions: {str(e)}", exc_info=True)
             return jsonify({
                 "error": {
-                    "message": str(e),
+                    "message": f"An error occurred: {str(e)}",
                     "type": "server_error"
                 }
-            }), 500
-    
+            })
+
+    # OpenAI-compatible chat completions endpoint
     @app.route("/v1/chat/completions", methods=["POST"])
     def chat_completions():
+        """Handle OpenAI-style chat completion requests."""
         try:
-            request_json = request.get_json()
-            response = handle_openai_completion(request_json)
-            return jsonify(response)
+            request_data = request.json
+            response_data = handle_openai_completion(request_data)
+            return jsonify(response_data)
         except Exception as e:
-            app.logger.error(f"Error in chat_completions: {str(e)}", exc_info=True)
             return jsonify({
                 "error": {
-                    "message": str(e),
+                    "message": f"An error occurred: {str(e)}",
                     "type": "server_error"
                 }
-            }), 500
-    
+            })
+
+    # Validation routes for OpenAI compatibility
     @app.route("/v1/chat/completions", methods=["GET"])
     def chat_validate():
+        """Validate OpenAI-style chat completions endpoint."""
         return jsonify({
             "object": "list",
             "data": [],
-            "first_id": None,
-            "last_id": None,
-            "has_more": False
+            "model": "weaviate-vscode-assistant"
         })
-    
+
     @app.route("/v1/completions", methods=["GET"])
     def completions_validate():
+        """Validate OpenAI-style completions endpoint."""
         return jsonify({
             "object": "list",
             "data": [],
-            "first_id": None,
-            "last_id": None,
-            "has_more": False
+            "model": "weaviate-vscode-assistant"
         })
-    
+
+    # Models list for OpenAI compatibility
     @app.route("/v1/models", methods=["GET"])
     def list_models():
+        """List available models (OpenAI compatibility)."""
         return jsonify({
             "object": "list",
             "data": [
                 {
-                    "id": "vscode-agent",
+                    "id": "weaviate-vscode-assistant",
                     "object": "model",
                     "created": int(__import__('time').time()),
-                    "owned_by": "organization-owner"
+                    "owned_by": "user"
                 }
             ]
         })
-    
+
     @app.route('/', methods=['GET'])
     def index():
-        return "VS Code Agent Integration Server"
-    
+        """Root endpoint."""
+        return jsonify({
+            "message": "VS Code AI Dev Team Agent API",
+            "version": "0.2.0",
+            "status": "running"
+        })
+
     return app
 
 def main():
-    """Main entry point for the VS Code integration script."""
-    parser = argparse.ArgumentParser(description="VS Code IDE integration for LLM agent")
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to run the server on")
-    parser.add_argument("--port", type=int, default=5000, help="Port to run the server on")
-    parser.add_argument("--debug", action="store_true", help="Run the server in debug mode")
-    parser.add_argument("--input", type=str, help="Process a single request from this JSON string and exit")
-    parser.add_argument("--production", action="store_true", help="Run the server in production mode using waitress")
+    """Run the server."""
+    parser = argparse.ArgumentParser(description='VS Code Agent Server')
+    parser.add_argument('--host', type=str, default='127.0.0.1', help='Host to bind to')
+    parser.add_argument('--port', type=int, default=None, help='Port to bind to')
+    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    parser.add_argument('--production', action='store_true', help='Run in production mode')
     
     args = parser.parse_args()
     
-    # If input is provided, process it and exit
-    if args.input:
-        request = parse_vscode_request(args.input)
-        response = handle_vscode_request(request)
-        print(json.dumps(response, indent=2))
-        return
+    # If port is not specified, determine it from environment or config
+    if args.port is None:
+        args.port = get_backend_port()
     
-    # Otherwise, start the server
+    # Save the port information to central location and for VS Code extension
+    save_port_info(backend_port=args.port)
+    
+    print(f"Starting VS Code integration server on http://{args.host}:{args.port}")
+    
     app = create_app()
-    
-    print(f"Starting VS Code integration server on {args.host}:{args.port}")
-    print(f"Debug mode: {'enabled' if args.debug else 'disabled'}")
-    print("Press Ctrl+C to stop the server")
-    
-    if args.debug:
-        # Use Flask's built-in server for development
-        app.run(host=args.host, port=args.port, debug=True)
-    elif args.production:
-        # Use waitress for production
-        from waitress import serve
-        serve(app, host=args.host, port=args.port, threads=4)
-    else:
-        # Default behavior - use Flask's server without debug
-        app.run(host=args.host, port=args.port, debug=False)
+    app.run(host=args.host, port=args.port, debug=args.debug)
 
 if __name__ == "__main__":
     main() 

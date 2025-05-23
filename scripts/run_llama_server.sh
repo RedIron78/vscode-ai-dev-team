@@ -5,12 +5,32 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 MODELS_DIR="$PROJECT_ROOT/models"
 
+# Function to get appropriate GPU layers based on model size
+get_gpu_layers() {
+    local model_path="$1"
+    local default_layers="$2"
+    
+    # Check if model name contains certain strings indicating large models
+    if [[ "$model_path" == *"17B"* ]]; then
+        echo "Model is very large, using minimal GPU acceleration (1 layer) to avoid out-of-memory errors"
+        echo "1"  # Use 1 GPU layer for 17B models
+    elif [[ "$model_path" == *"34B"* ]] || [[ "$model_path" == *"70B"* ]]; then
+        echo "Model is extremely large for consumer GPUs, using CPU-only mode (0 GPU layers)"
+        echo "0"  # Use CPU only for extremely large models
+    else
+        echo "$default_layers"
+    fi
+}
+
 # Default values
-MODEL_PATH=""  # Will be set after checking models directory
+MODEL_PATH="$1"  # First argument is model path
 HOST="${LLM_HOST:-127.0.0.1}"
 PORT="${LLM_PORT:-8081}"
 THREADS="${LLM_THREADS:-4}"
-GPU_LAYERS="${LLM_GPU_LAYERS:-35}"  # Number of layers to offload to GPU, set to 0 for CPU only
+DEFAULT_GPU_LAYERS="${LLM_GPU_LAYERS:-35}"
+
+# Determine appropriate GPU layers based on model size
+GPU_LAYERS=$(get_gpu_layers "$MODEL_PATH" "$DEFAULT_GPU_LAYERS")
 
 # Function to check if a port is in use
 port_in_use() {
@@ -61,11 +81,34 @@ if [ -d "$MODELS_DIR" ] && [ "$(ls -A "$MODELS_DIR" 2>/dev/null)" ]; then
     echo "Models found in $MODELS_DIR:"
     ls -1 "$MODELS_DIR"/*.gguf 2>/dev/null || echo "No .gguf models found."
     
-    # Try to find a GGUF model
-    FIRST_MODEL=$(find "$MODELS_DIR" -name "*.gguf" | head -n 1)
-    if [ -n "$FIRST_MODEL" ]; then
-        MODEL_PATH="$FIRST_MODEL"
-        echo "Using model: $MODEL_PATH"
+    # Check if LLM_MODEL is set from environment (from start_all.sh)
+    if [ -n "$LLM_MODEL" ]; then
+        MODEL_PATH="$LLM_MODEL"
+        echo "Using model from environment: $MODEL_PATH"
+        
+        # Check if this is a multi-part model (part 1 of N)
+        if [[ "$MODEL_PATH" == *"-00001-of-"* ]]; then
+            echo "Detected split GGUF model. Will use the base part."
+        fi
+        
+        # Set lower GPU layers for large models (Llama-4 models)
+        if [[ "$MODEL_PATH" == *"Llama-4"* ]] && [[ "$MODEL_PATH" == *"17B"* ]]; then
+            echo "Large model detected. Reducing GPU layers to avoid out-of-memory errors."
+            GPU_LAYERS=4
+        fi
+    else
+        # Try to find a GGUF model if LLM_MODEL not set
+        FIRST_MODEL=$(find "$MODELS_DIR" -name "*.gguf" | head -n 1)
+        if [ -n "$FIRST_MODEL" ]; then
+            MODEL_PATH="$FIRST_MODEL"
+            echo "Using model: $MODEL_PATH"
+            
+            # Set lower GPU layers for large models (Llama-4 models)
+            if [[ "$MODEL_PATH" == *"Llama-4"* ]] && [[ "$MODEL_PATH" == *"17B"* ]]; then
+                echo "Large model detected. Reducing GPU layers to avoid out-of-memory errors."
+                GPU_LAYERS=4
+            fi
+        fi
     fi
 else
     echo "No models found in $MODELS_DIR directory."
@@ -110,13 +153,6 @@ if [ -z "$MODEL_PATH" ]; then
     fi
 fi
 
-# Allow user to specify CPU-only mode
-read -p "Run on CPU only? (y/N): " CPU_ONLY
-if [[ "$CPU_ONLY" =~ ^[Yy]$ ]]; then
-    GPU_LAYERS=0
-    echo "Running in CPU-only mode"
-fi
-
 echo "Using model: $MODEL_PATH"
 echo "Using llama-server at: $LLAMA_SERVER_PATH"
 echo "Starting server on http://$HOST:$PORT"
@@ -129,7 +165,7 @@ echo ""
 echo "Press Ctrl+C to stop the server"
 echo "======================================================"
 
-# Start the server
+# Start the server with the appropriate model
 "$LLAMA_SERVER_PATH" \
     -m "$MODEL_PATH" \
     -c 2048 \
